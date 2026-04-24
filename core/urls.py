@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.urls import path, include
+from django.views.generic import RedirectView
 
 urlpatterns = [
     # Ruta del panel de administración
@@ -10,4 +11,5 @@ urlpatterns = [
     path('tesoreria/', include('tesoreria.urls')),
     path('cartera/', include('cartera.urls')),
     path('reportes/', include('reportes.urls')),
+    path('', RedirectView.as_view(pattern_name='clientes:lista_clientes'), name='home'),
 ]
