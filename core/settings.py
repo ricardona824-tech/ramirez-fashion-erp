@@ -23,9 +23,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-5i64*!$d=1u-yhg&7v-!yy+#6r2rqy477)ke8ugo%j^9sc)x#2'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['ramirez-fashion-erp.onrender.com', 'localhost', '127.0.0.1']
 
 
 # Application definition
