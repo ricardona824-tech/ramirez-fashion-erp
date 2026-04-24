@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow-sm border-info">
+                <div class="card-header bg-info text-white fw-bold">
+                    <h4 class="mb-0">{{ titulo }}</h4>
+                </div>
+                <div class="card-body">
+                    {% if credito %}
+                        <div class="alert alert-warning mb-4 text-center">
+                            <strong>Saldo Pendiente: </strong> <span class="fs-4">${{ credito.saldo_pendiente|floatformat:"0"|intcomma }}</span>
+                        </div>
+                    {% endif %}
+
+                    {% if messages %}
+                        {% for message in messages %}
+                            <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+                        {% endfor %}
+                    {% endif %}
+
+                    <form method="post">
+                        {% csrf_token %}
+                        {{ form.as_p }}
+                        
+                        <div class="d-grid gap-2 mt-4">
+                            <button type="submit" class="btn btn-info text-white btn-lg">Guardar Registro</button>
+                            <a href="{% url 'cartera:lista_creditos' %}" class="btn btn-outline-secondary btn-lg">Cancelar</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const montoInputs = document.querySelectorAll("input[inputmode='numeric']");
+        montoInputs.forEach(function(input) {
+            input.addEventListener("input", function(e) {
+                let value = this.value.replace(/\D/g, "");
+                if (value === "") {
+                    this.value = "";
+                    return;
+                }
+                this.value = new Intl.NumberFormat('es-CO').format(parseInt(value));
+            });
+        });
+    });
+</script>
+{% endblock %}

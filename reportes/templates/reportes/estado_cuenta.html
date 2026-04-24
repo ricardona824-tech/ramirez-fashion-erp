@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+{% load humanize %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="text-secondary"><i class="bi bi-person-lines-fill"></i> Estado de Cuenta</h2>
+    </div>
+
+    <div class="card shadow-sm mb-4 border-0" style="background-color: #f8f9fa;">
+        <div class="card-body">
+            <form method="get" class="row align-items-end">
+                <div class="col-md-4 mb-2 mb-md-0">
+                    <label for="cliente_id" class="form-label text-secondary small fw-bold">Seleccionar Cliente:</label>
+                    <select name="cliente_id" id="cliente_id" class="form-select border-light shadow-sm" required>
+                        <option value="">-- Elige un cliente --</option>
+                        {% for c in clientes %}
+                            <option value="{{ c.id }}" {% if cliente_seleccionado and cliente_seleccionado.id == c.id %}selected{% endif %}>
+                                {{ c.nombre }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3 mb-2 mb-md-0">
+                    <label for="fecha_inicio" class="form-label text-secondary small fw-bold">Desde:</label>
+                    <input type="date" id="fecha_inicio" name="fecha_inicio" value="{{ fecha_inicio }}" class="form-control border-light shadow-sm">
+                </div>
+                <div class="col-md-3 mb-2 mb-md-0">
+                    <label for="fecha_fin" class="form-label text-secondary small fw-bold">Hasta:</label>
+                    <input type="date" id="fecha_fin" name="fecha_fin" value="{{ fecha_fin }}" class="form-control border-light shadow-sm">
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100 shadow-sm"><i class="bi bi-search"></i> Filtrar</button>
+                    <a href="{% url 'reportes:estado_cuenta_cliente' %}{% if cliente_seleccionado %}?cliente_id={{ cliente_seleccionado.id }}{% endif %}" class="btn btn-link text-secondary w-100 btn-sm mt-1">Limpiar Fechas</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {% if cliente_seleccionado %}
+    <div class="card bg-white shadow-lg border-0 rounded-4">
+        <div class="card-header bg-white border-bottom border-light pt-4 pb-3">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 text-secondary fw-bold">Historial: {{ cliente_seleccionado.nombre }}</h5>
+                <h4 class="mb-0 fw-bold" style="color: #F39C12;">Deuda Total Actual: ${{ saldo_actual|floatformat:"0"|intcomma }}</h4>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light text-secondary">
+                        <tr>
+                            <th class="ps-4">Fecha</th>
+                            <th>Detalle</th>
+                            <th class="text-end">Cargo (Deuda)</th>
+                            <th class="text-end">Abono (Pago)</th>
+                            <th class="text-end pe-4">Saldo Final</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for mov in movimientos %}
+                        <tr>
+                            <td class="ps-4 text-muted small">{{ mov.fecha|date:"Y-m-d h:i A" }}</td>
+                            <td class="fw-bold text-secondary">{{ mov.detalle }}</td>
+
+                            <td class="text-end fw-bold" style="color: #E74C3C;">
+                                {% if mov.cargo > 0 %}${{ mov.cargo|floatformat:"0"|intcomma }}{% else %}-{% endif %}
+                            </td>
+
+                            <td class="text-end fw-bold" style="color: #16A085;">
+                                {% if mov.abono > 0 %}${{ mov.abono|floatformat:"0"|intcomma }}{% else %}-{% endif %}
+                            </td>
+
+                            <td class="text-end fw-bold pe-4 text-dark">
+                                ${{ mov.saldo_final|floatformat:"0"|intcomma }}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="text-center py-5 text-muted">
+                                <i class="bi bi-folder-x fs-2"></i>
+                                <p class="mt-2">No se encontraron movimientos para este filtro.</p>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

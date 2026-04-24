@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow-sm border-primary">
+                <div class="card-header bg-primary text-white fw-bold">
+                    <h4 class="mb-0">{{ titulo }}</h4>
+                </div>
+                <div class="card-body">
+                    {% if messages %}
+                        {% for message in messages %}
+                            <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+                        {% endfor %}
+                    {% endif %}
+
+                    <form method="post">
+                        {% csrf_token %}
+                        {{ form.as_p }}
+                        
+                        <div class="d-grid gap-2 mt-4">
+                            <button type="submit" class="btn btn-primary btn-lg">Confirmar Operación</button>
+                            <a href="{% url 'tesoreria:dashboard' %}" class="btn btn-outline-secondary btn-lg">Cancelar</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const montoInput = document.querySelector("input[name='monto']");
+        if (montoInput) {
+            montoInput.addEventListener("input", function(e) {
+                // 1. Quitamos cualquier caracter que no sea número
+                let value = this.value.replace(/\D/g, "");
+
+                // 2. Si está vacío, no hacemos nada
+                if (value === "") {
+                    this.value = "";
+                    return;
+                }
+
+                // 3. Formateamos usando el estándar de Colombia
+                this.value = new Intl.NumberFormat('es-CO').format(parseInt(value));
+            });
+        }
+    });
+</script>
+{% endblock %}

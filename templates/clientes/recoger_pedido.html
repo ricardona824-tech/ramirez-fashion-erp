@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% load humanize %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow-sm border-warning">
+                <div class="card-header bg-warning text-dark fw-bold">
+                    <i class="bi bi-box-seam"></i> Recoger Mercancía y Pagar
+                </div>
+                <div class="card-body">
+                    <h5 class="card-title">Pedido: {{ pedido.producto }}</h5>
+                    <p class="mb-1"><strong>Proveedor:</strong> {{ pedido.proveedor }}</p>
+
+                    <p class="text-danger fw-bold fs-4">Total a Pagar: ${{ pedido.precio_costo|floatformat:"0"|intcomma }}</p>
+
+                    <hr>
+
+                    {% if messages %}
+                        {% for message in messages %}
+                            <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                    <form method="post">
+                        {% csrf_token %}
+                        {{ form.as_p }}
+
+                        <div class="alert alert-info small">
+                            Al guardar, se descontarán ${{ pedido.precio_costo|floatformat:"0"|intcomma }} de la cuenta seleccionada.
+                        </div>
+
+                        <div class="d-grid gap-2 mt-4">
+                            <button type="submit" class="btn btn-warning btn-lg">Confirmar Recogida y Pago</button>
+                            <a href="{% url 'clientes:lista_pedidos' %}" class="btn btn-outline-secondary btn-lg">Cancelar</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

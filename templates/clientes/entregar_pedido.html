@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow-sm border-success">
+                <div class="card-header bg-success text-white fw-bold">
+                    <i class="bi bi-check2-circle"></i> Entregar Pedido a Cliente
+                </div>
+                <div class="card-body">
+                    <h5 class="card-title">Cliente: {{ pedido.cliente.nombre }}</h5>
+                    <p class="mb-1"><strong>Producto:</strong> {{ pedido.producto }}</p>
+                    <p class="mb-1"><strong>Precio a cobrar:</strong> <span class="text-success fw-bold fs-5">${{ pedido.precio_venta|floatformat:"0"|intcomma }}</span></p>
+
+                    <hr>
+
+                    <form method="post">
+                        {% csrf_token %}
+                        {{ form.as_p }}
+
+                        <div class="d-grid gap-2 mt-4">
+                            <button type="submit" class="btn btn-success btn-lg">Confirmar Entrega</button>
+                            <a href="{% url 'clientes:lista_pedidos' %}" class="btn btn-outline-secondary btn-lg">Cancelar</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const tipoPagoSelect = document.getElementById('id_tipo_pago');
+        // Buscamos el bloque <p> que contiene el selector de la cuenta
+        const cuentaDestinoBloque = document.getElementById('id_cuenta_destino').closest('p');
+
+        function toggleCuenta() {
+            if (tipoPagoSelect.value === 'CONTADO') {
+                cuentaDestinoBloque.style.display = 'block';
+            } else {
+                cuentaDestinoBloque.style.display = 'none';
+                document.getElementById('id_cuenta_destino').value = ''; // Limpiamos el valor por seguridad
+            }
+        }
+
+        // Ejecutar cuando cambien la opción
+        tipoPagoSelect.addEventListener('change', toggleCuenta);
+        // Ejecutar al cargar la página por primera vez
+        toggleCuenta();
+    });
+</script>
+{% endblock %}

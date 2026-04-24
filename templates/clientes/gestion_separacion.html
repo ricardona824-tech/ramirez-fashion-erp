@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container mt-4">
+    <h2>Gestión de Separación (Proveedores)</h2>
+    <hr>
+
+    <form method="get" class="mb-4 d-flex align-items-center gap-3">
+        <label for="proveedor" class="form-label mb-0 fw-bold">Filtrar por Proveedor:</label>
+        <select name="proveedor" id="proveedor" class="form-select w-auto" onchange="this.form.submit()">
+            <option value="">Todos los proveedores</option>
+            {% for prov in proveedores %}
+                <option value="{{ prov }}" {% if prov == proveedor_seleccionado %}selected{% endif %}>{{ prov }}</option>
+            {% endfor %}
+        </select>
+    </form>
+
+    <form method="post">
+        {% csrf_token %}
+        
+        <div class="mb-3">
+            <button type="submit" name="accion" value="separar" class="btn btn-success btn-lg">
+                <i class="bi bi-check-circle"></i> Marcar como Separado/Confirmado
+            </button>
+            <button type="submit" name="accion" value="agotar" class="btn btn-danger btn-lg ms-2">
+                <i class="bi bi-x-circle"></i> Marcar como Agotado
+            </button>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Sel.</th>
+                        <th>Fecha</th>
+                        <th>Cliente</th>
+                        <th>Producto</th>
+                        <th>Talla / Color</th>
+                        <th>Proveedor</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for pedido in pedidos %}
+                    <tr>
+                        <td>
+                            <input class="form-check-input" type="checkbox" name="pedidos_seleccionados" value="{{ pedido.id_pedido }}">
+                        </td>
+                        <td>{{ pedido.fecha_registro|date:"d/m/Y" }}</td>
+                        <td>{{ pedido.cliente.nombre }}</td>
+                        <td>{{ pedido.producto }}</td>
+                        <td>{{ pedido.talla }} / {{ pedido.color }}</td>
+                        <td>{{ pedido.proveedor }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted">No hay pedidos pendientes para separar.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </form>
+</div>
+{% endblock %}

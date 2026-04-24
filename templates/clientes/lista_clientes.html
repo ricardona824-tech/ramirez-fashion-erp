@@ -1,0 +1,69 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Maestro de Clientes</h2>
+        <a href="{% url 'clientes:crear_cliente' %}" class="btn btn-primary btn-lg">+ Nuevo Cliente</a>
+    </div>
+
+    <div class="mb-4">
+        <input type="text" id="buscadorClientes" class="form-control form-control-lg"
+               placeholder="Buscar por nombre o teléfono en tiempo real..." value="{{ query }}">
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle" id="tablaClientes">
+            <thead class="table-light">
+                <tr>
+                    <th>Nombre</th>
+                    <th>WhatsApp</th>
+                    <th>Dirección</th>
+                    <th>Ciudad</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for cliente in clientes %}
+                <tr class="cliente-row">
+                    <td class="cliente-nombre">{{ cliente.nombre }}</td>
+                    <td class="cliente-tel">{{ cliente.whatsapp }}</td>
+                    <td>{{ cliente.direccion }}</td>
+                    <td>{{ cliente.ciudad }}</td>
+                    <td>
+                        <a href="https://wa.me/57{{ cliente.whatsapp }}" target="_blank"
+                           class="btn btn-success btn-sm">
+                           <i class="bi bi-whatsapp"></i> Chat
+                        </a>
+                        <a href="{% url 'clientes:editar_cliente' cliente.id %}" class="btn btn-outline-secondary btn-sm">Editar</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="text-center">No hay clientes registrados o no coinciden con la búsqueda.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    document.getElementById('buscadorClientes').addEventListener('keyup', function() {
+        let filter = this.value.toLowerCase();
+        let rows = document.querySelectorAll('.cliente-row');
+
+        rows.forEach(row => {
+            let nombre = row.querySelector('.cliente-nombre').textContent.toLowerCase();
+            let telefono = row.querySelector('.cliente-tel').textContent.toLowerCase();
+
+            // Si el texto coincide con nombre o teléfono, se muestra, sino se oculta
+            if (nombre.includes(filter) || telefono.includes(filter)) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    });
+</script>
+{% endblock %}

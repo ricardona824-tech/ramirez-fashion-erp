@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-7">
+            <div class="card shadow-sm border-danger">
+                <div class="card-header bg-danger text-white fw-bold">
+                    <i class="bi bi-exclamation-triangle"></i> Cancelar Venta y Procesar Reembolsos
+                </div>
+                <div class="card-body">
+                    <h5 class="card-title">Pedido: {{ pedido.producto }}</h5>
+                    <p class="mb-1"><strong>Cliente:</strong> {{ pedido.cliente.nombre }}</p>
+                    <p class="mb-1"><strong>Proveedor:</strong> {{ pedido.proveedor }}</p>
+
+                    <div class="row mt-3 mb-3 text-center">
+                        <div class="col-6 border-end">
+                            <small class="text-muted">El Proveedor te devuelve</small><br>
+                            <span class="text-success fw-bold fs-5">+ ${{ pedido.precio_costo|floatformat:"0"|intcomma }}</span>
+                        </div>
+                        <div class="col-6">
+                            <small class="text-muted">Tú le devuelves al Cliente</small><br>
+                            <span class="text-danger fw-bold fs-5">- ${{ pedido.precio_venta|floatformat:"0"|intcomma }}</span>
+                        </div>
+                    </div>
+                    <hr>
+
+                    <form method="post">
+                        {% csrf_token %}
+                        {{ form.as_p }}
+
+                        <div class="d-grid gap-2 mt-4">
+                            <button type="submit" class="btn btn-danger btn-lg">Procesar Cancelación Definitiva</button>
+                            <a href="{% url 'clientes:lista_pedidos' %}" class="btn btn-outline-secondary btn-lg">Volver atrás</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const tipoReembolsoSelect = document.getElementById('id_tipo_reembolso');
+        const cuentaClienteBloque = document.getElementById('id_cuenta_cliente').closest('p');
+
+        function toggleCuentaCliente() {
+            if (tipoReembolsoSelect.value === 'CONTADO') {
+                cuentaClienteBloque.style.display = 'block';
+            } else {
+                cuentaClienteBloque.style.display = 'none';
+                document.getElementById('id_cuenta_cliente').value = '';
+            }
+        }
+        tipoReembolsoSelect.addEventListener('change', toggleCuentaCliente);
+        toggleCuentaCliente();
+    });
+</script>
+{% endblock %}
