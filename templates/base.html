@@ -39,9 +39,11 @@
                     <li class="nav-item">
                         <a class="nav-link" href="{% url 'tesoreria:dashboard' %}">Tesorería</a>
                     </li>
+                    {% comment %}
                     <li class="nav-item">
                         <a class="nav-link" href="{% url 'cartera:lista_creditos' %}">Cartera</a>
                     </li>
+                    {% endcomment %}
                     <li class="nav-item">
                         <a class="nav-link text-warning fw-bold" href="{% url 'reportes:dashboard_gerencial' %}">
                             <i class="bi bi-bar-chart-fill"></i> Reportes

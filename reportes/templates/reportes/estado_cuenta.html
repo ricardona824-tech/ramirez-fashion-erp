@@ -40,9 +40,17 @@
     {% if cliente_seleccionado %}
     <div class="card bg-white shadow-lg border-0 rounded-4">
         <div class="card-header bg-white border-bottom border-light pt-4 pb-3">
-            <div class="d-flex justify-content-between align-items-center">
-                <h5 class="mb-0 text-secondary fw-bold">Historial: {{ cliente_seleccionado.nombre }}</h5>
-                <h4 class="mb-0 fw-bold" style="color: #F39C12;">Deuda Total Actual: ${{ saldo_actual|floatformat:"0"|intcomma }}</h4>
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-center">
+                <h5 class="mb-3 mb-md-0 text-secondary fw-bold">Historial: {{ cliente_seleccionado.nombre }}</h5>
+
+                <div class="d-flex align-items-center gap-3">
+                    <h4 class="mb-0 fw-bold" style="color: #F39C12;">
+                        Deuda Total: ${{ saldo_actual|floatformat:"0"|intcomma }}
+                    </h4>
+                    <a href="{% url 'cartera:abono_global' cliente_seleccionado.id %}" class="btn btn-success shadow-sm fw-bold">
+                        <i class="bi bi-cash-stack"></i> Registrar Abono
+                    </a>
+                </div>
             </div>
         </div>
         <div class="card-body p-0">
