@@ -74,3 +74,6 @@ class Pedido(models.Model):
 
     def __str__(self):
         return f"Pedido {self.id_pedido} - {self.producto} ({self.estado})"
+
+
+    pagado_al_proveedor = models.BooleanField(default=False, verbose_name="¿Pagado al Proveedor?")

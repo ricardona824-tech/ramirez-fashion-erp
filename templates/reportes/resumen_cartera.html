@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% load humanize %}
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="bi bi-journal-check text-primary"></i> Resumen de Cartera</h2>
+        <div class="text-end">
+            <span class="text-muted d-block text-uppercase small fw-bold">Total por Cobrar</span>
+            <h3 class="text-danger fw-bold">${{ total_general|floatformat:0|intcomma }}</h3>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Cliente</th>
+                            <th>Teléfono</th>
+                            <th class="text-end">Saldo Pendiente</th>
+                            <th class="text-center">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for c in clientes %}
+                        <tr>
+                            <td class="fw-bold">{{ c.nombre }}</td>
+                            <td>{{ c.telefono }}</td>
+                            <td class="text-end fw-bold text-danger">
+                                ${{ c.saldo|floatformat:0|intcomma }}
+                            </td>
+                            <td class="text-center">
+                                <a href="{% url 'reportes:estado_cuenta_cliente' %}?cliente_id={{ c.id }}"
+                                   class="btn btn-sm btn-outline-primary" title="Ver Detalle">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+
+                                <a href="https://wa.me/57{{ c.telefono }}?text=Hola%20{{ c.nombre }},%20te%20saludamos%20de%20Ramirez%20Fashion.%20Te%20escribimos%20para%20recordarte%20que%20tienes%20un%20saldo%20pendiente%20de%20${{ c.saldo|floatformat:0|intcomma }}.%20¿Cómo%20podemos%20ayudarte?"
+                                   target="_blank" class="btn btn-sm btn-success" title="Cobrar por WhatsApp">
+                                    <i class="bi bi-whatsapp"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

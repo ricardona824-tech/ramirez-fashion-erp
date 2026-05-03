@@ -136,3 +136,33 @@ def estado_cuenta_cliente(request):
         'saldo_actual': saldo_actual
     }
     return render(request, 'reportes/estado_cuenta.html', context)
+
+
+def resumen_cartera(request):
+    # 1. Traemos la lista de todos los clientes
+    clientes = Cliente.objects.all()
+
+    lista_cartera = []
+    total_general_cartera = 0
+
+    for c in clientes:
+        # 2. Sumamos directamente el "saldo_pendiente" de todos los créditos de este cliente
+        saldo = Credito.objects.filter(cliente=c).aggregate(total=Sum('saldo_pendiente'))['total'] or 0
+
+        # 3. Solo incluimos a los que deben dinero (saldo > 0)
+        if saldo > 0:
+            lista_cartera.append({
+                'id': c.id,
+                'nombre': c.nombre,
+                'telefono': c.whatsapp,
+                'saldo': saldo
+            })
+            total_general_cartera += saldo
+
+    # 4. Ordenamos para que los que más deben salgan arriba
+    lista_cartera = sorted(lista_cartera, key=lambda x: x['saldo'], reverse=True)
+
+    return render(request, 'reportes/resumen_cartera.html', {
+        'clientes': lista_cartera,
+        'total_general': total_general_cartera
+    })

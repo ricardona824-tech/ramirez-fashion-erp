@@ -6,6 +6,27 @@
         <a href="{% url 'clientes:crear_pedido' %}" class="btn btn-primary btn-lg">+ Nuevo Pedido</a>
     </div>
 
+    <form method="GET" class="mb-4 shadow-sm">
+        <div class="input-group">
+            <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+            <input type="text" name="q" class="form-control form-control-lg"
+                   placeholder="Buscar por cliente, proveedor o producto..."
+                   value="{{ query }}">
+            <button class="btn btn-dark px-4" type="submit">Buscar</button>
+
+            {% if query %}
+                <a href="{% url 'clientes:lista_pedidos' %}" class="btn btn-outline-danger px-3" title="Limpiar búsqueda">
+                    <i class="bi bi-x-lg"></i>
+                </a>
+            {% endif %}
+        </div>
+        {% if query %}
+            <div class="form-text mt-2 text-muted">
+                Mostrando resultados para: <strong>"{{ query }}"</strong>
+            </div>
+        {% endif %}
+    </form>
+
     {% if messages %}
         {% for message in messages %}
         <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
@@ -43,40 +64,62 @@
                             </a>
                         </div>
 
-                        {% if pedido.estado == 'SEPARADO' %}
-                            <a href="{% url 'clientes:marcar_recogido' pedido.id_pedido %}" class="btn btn-sm btn-warning">
-                                <i class="bi bi-box-seam"></i> Pagar Proveedor
-                            </a>
-                        {% elif pedido.estado == 'RECOGIDO' %}
-                            <a href="{% url 'clientes:entregar_pedido' pedido.id_pedido %}" class="btn btn-sm btn-success text-white">
-                                <i class="bi bi-check2-circle"></i> Entregar / Cobrar
-                            </a>
+                        <div class="d-flex flex-column gap-1 mt-1">
 
-                        {% elif pedido.estado == 'ENTREGADO' %}
-                            <a href="{% url 'clientes:solicitar_cambio' pedido.id_pedido %}" class="btn btn-sm btn-outline-danger mt-1">
-                                <i class="bi bi-arrow-return-left"></i> Solicitar Cambio
-                            </a>
-                            <a href="{% url 'clientes:cancelar_venta' pedido.id_pedido %}" class="btn btn-sm btn-danger mt-1">
-                                <i class="bi bi-x-circle"></i> Cancelar Venta
-                            </a>
-                        {% elif pedido.estado == 'DEV_RECOGER' %}
-                            <a href="{% url 'clientes:marcar_recogido_cliente' pedido.id_pedido %}" class="btn btn-sm btn-secondary">
-                                <i class="bi bi-person-dash"></i> Recogí del Cliente
-                            </a>
-                        {% elif pedido.estado == 'DEV_PROVEEDOR' %}
-                            <a href="{% url 'clientes:marcar_cambiado_proveedor' pedido.id_pedido %}" class="btn btn-sm btn-info text-white">
-                                <i class="bi bi-shop"></i> Cambié en Proveedor
-                            </a>
-                        {% elif pedido.estado == 'DEV_ENTREGAR' %}
-                            <a href="{% url 'clientes:entregar_cambio' pedido.id_pedido %}" class="btn btn-sm btn-success">
-                                <i class="bi bi-house-door"></i> Entregar Nueva Prenda
-                            </a>
-                        {% endif %}
+                            {% if pedido.estado != 'CANCELADO' %}
+                                {% if not pedido.pagado_al_proveedor %}
+                                    <a href="{% url 'clientes:registrar_pago_proveedor' pedido.id_pedido %}" class="btn btn-sm btn-outline-danger text-start">
+                                        <i class="bi bi-currency-dollar"></i> Pagar Proveedor
+                                    </a>
+                                {% else %}
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle py-2 text-start">
+                                        <i class="bi bi-check-circle"></i> Ya Pagado al Proveedor
+                                    </span>
+                                {% endif %}
+                            {% endif %}
+
+                            {% if pedido.estado == 'SEPARADO' %}
+                                <a href="{% url 'clientes:marcar_recogido' pedido.id_pedido %}" class="btn btn-sm btn-warning text-start">
+                                    <i class="bi bi-box-seam"></i> Marcar Recogido
+                                </a>
+
+                            {% elif pedido.estado == 'RECOGIDO' %}
+                                <a href="{% url 'clientes:entregar_pedido' pedido.id_pedido %}" class="btn btn-sm btn-success text-white text-start">
+                                    <i class="bi bi-check2-circle"></i> Entregar / Cobrar
+                                </a>
+
+                            {% elif pedido.estado == 'ENTREGADO' %}
+                                <a href="{% url 'clientes:solicitar_cambio' pedido.id_pedido %}" class="btn btn-sm btn-outline-danger text-start">
+                                    <i class="bi bi-arrow-return-left"></i> Solicitar Cambio
+                                </a>
+                                <a href="{% url 'clientes:cancelar_venta' pedido.id_pedido %}" class="btn btn-sm btn-danger text-start">
+                                    <i class="bi bi-x-circle"></i> Cancelar Venta
+                                </a>
+
+                            {% elif pedido.estado == 'DEV_RECOGER' %}
+                                <a href="{% url 'clientes:marcar_recogido_cliente' pedido.id_pedido %}" class="btn btn-sm btn-secondary text-start">
+                                    <i class="bi bi-person-dash"></i> Recogí del Cliente
+                                </a>
+
+                            {% elif pedido.estado == 'DEV_PROVEEDOR' %}
+                                <a href="{% url 'clientes:marcar_cambiado_proveedor' pedido.id_pedido %}" class="btn btn-sm btn-info text-white text-start">
+                                    <i class="bi bi-shop"></i> Cambié en Proveedor
+                                </a>
+
+                            {% elif pedido.estado == 'DEV_ENTREGAR' %}
+                                <a href="{% url 'clientes:entregar_cambio' pedido.id_pedido %}" class="btn btn-sm btn-success text-start">
+                                    <i class="bi bi-house-door"></i> Entregar Nueva Prenda
+                                </a>
+                            {% endif %}
+                        </div>
                     </td>
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="6" class="text-center">No hay pedidos registrados.</td>
+                    <td colspan="6" class="text-center py-4 text-muted">
+                        <i class="bi bi-inbox fs-2"></i>
+                        <p class="mt-2 mb-0">No se encontraron pedidos con esos criterios.</p>
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>

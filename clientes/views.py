@@ -52,9 +52,18 @@ def editar_cliente(request, pk):
 
 
 def lista_pedidos(request):
-    """Vista para ver todos los pedidos y su estado."""
-    pedidos = Pedido.objects.all().select_related('cliente')  # select_related optimiza la consulta FK
-    return render(request, 'clientes/lista_pedidos.html', {'pedidos': pedidos})
+    pedidos = Pedido.objects.all()
+    query = request.GET.get('q', '')
+    if query:
+        pedidos = pedidos.filter(
+            Q(cliente__nombre__icontains=query) |
+            Q(proveedor__icontains=query) |
+            Q(producto__icontains=query)
+        ).distinct()
+    return render(request, 'clientes/lista_pedidos.html', {
+        'pedidos': pedidos,
+        'query': query
+    })
 
 
 def crear_pedido(request):
@@ -103,12 +112,11 @@ def gestion_separacion(request):
     return render(request, 'clientes/gestion_separacion.html', context)
 
 
-def marcar_recogido(request, pk):
-    """Vista para marcar pedido como RECOGIDO y registrar el egreso (HU 05)."""
-    pedido = get_object_or_404(Pedido, pk=pk)
+def registrar_pago_proveedor(request, id_pedido):
+    pedido = get_object_or_404(Pedido, pk=id_pedido)
 
-    # Validación de seguridad: Solo pedidos SEPARADOS se pueden recoger
-    if pedido.estado != 'SEPARADO':
+    if pedido.pagado_al_proveedor:
+        messages.warning(request, "Este pedido ya fue pagado al proveedor.")
         return redirect('clientes:lista_pedidos')
 
     if request.method == 'POST':
@@ -116,36 +124,41 @@ def marcar_recogido(request, pk):
         if form.is_valid():
             cuenta = form.cleaned_data['cuenta_origen']
 
-            # 👇 NUEVA VALIDACIÓN: Bloqueamos si no hay dinero suficiente 👇
             if cuenta.saldo_actual < pedido.precio_costo:
-                messages.error(request,
-                               f"¡Error! Saldo insuficiente en {cuenta.nombre}. Necesitas ${int(pedido.precio_costo):,} y solo tienes ${int(cuenta.saldo_actual):,}.")
+                messages.error(request, f"Saldo insuficiente en {cuenta.nombre}.")
             else:
-                # transaction.atomic garantiza que los 3 pasos se cumplan
                 with transaction.atomic():
-                    # 1. Cambiar estado del pedido
-                    pedido.estado = 'RECOGIDO'
+                    # Marcamos como pagado financieramente
+                    pedido.pagado_al_proveedor = True
                     pedido.save()
 
-                    # 2. Restar el dinero de la cuenta (Precio Costo)
+                    # Restamos el dinero
                     cuenta.saldo_actual -= pedido.precio_costo
                     cuenta.save()
 
-                    # 3. Registrar el log de auditoría (Egreso)
+                    # Registro contable
                     Movimiento.objects.create(
-                        cuenta=cuenta,
-                        tipo='EGRESO',
-                        monto=pedido.precio_costo,
+                        cuenta=cuenta, tipo='EGRESO', monto=pedido.precio_costo,
                         concepto=f"Pago a {pedido.proveedor} por {pedido.producto}",
                         referencia_pedido=str(pedido.id_pedido)
                     )
-                messages.success(request,
-                                 f"Pago registrado correctamente. Se descontaron ${int(pedido.precio_costo):,} de {cuenta.nombre}.")
+                messages.success(request, f"¡Pago de ${int(pedido.precio_costo):,} registrado!")
                 return redirect('clientes:lista_pedidos')
     else:
         form = PagarProveedorForm()
+    return render(request, 'clientes/pagar_proveedor.html', {'form': form, 'pedido': pedido})
 
-    return render(request, 'clientes/recoger_pedido.html', {'form': form, 'pedido': pedido})
+
+def marcar_recogido(request, pk):
+    pedido = get_object_or_404(Pedido, pk=pk)
+
+    # Ahora solo cambia el estado físico
+    if pedido.estado == 'SEPARADO':
+        pedido.estado = 'RECOGIDO'
+        pedido.save()
+        messages.success(request, f"El producto {pedido.producto} ahora está marcado como RECOGIDO.")
+
+    return redirect('clientes:lista_pedidos')
 
 
 def entregar_pedido(request, pk):
