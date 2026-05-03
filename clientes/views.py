@@ -285,3 +285,26 @@ def cancelar_venta(request, pk):
         form = CancelarVentaForm()
 
     return render(request, 'clientes/cancelar_venta.html', {'form': form, 'pedido': pedido})
+
+
+def editar_pedido(request, id_pedido):
+    """Permite editar un pedido existente."""
+    # 1. Buscamos el pedido en la base de datos
+    pedido = get_object_or_404(Pedido, pk=id_pedido)
+
+    if request.method == 'POST':
+        # 2. Le pasamos los nuevos datos (request.POST) y le decimos que sobreescriba este pedido (instance=pedido)
+        form = PedidoForm(request.POST, instance=pedido)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "¡Pedido actualizado correctamente!")
+            return redirect('clientes:lista_pedidos')
+    else:
+        # 3. Si apenas entra a la página, le mostramos el formulario prellenado
+        form = PedidoForm(instance=pedido)
+
+    # Nota: Asegúrate de que 'clientes/pedido_form.html' sea el mismo archivo que usas para CREAR pedidos
+    return render(request, 'clientes/pedido_form.html', {
+        'form': form,
+        'titulo': f'Editar Pedido - {pedido.cliente.nombre}'
+    })

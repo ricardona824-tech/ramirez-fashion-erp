@@ -24,7 +24,7 @@
                     <th>Producto</th>
                     <th>Proveedor</th>
                     <th>Precio Venta</th>
-                    <th>Estado</th>
+                    <th>Estado / Acciones</th>
                 </tr>
             </thead>
             <tbody>
@@ -36,7 +36,12 @@
                     <td>{{ pedido.proveedor }}</td>
                     <td>${{ pedido.precio_venta }}</td>
                     <td>
-                        <span class="badge bg-secondary mb-2">{{ pedido.get_estado_display }}</span><br>
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <span class="badge bg-secondary">{{ pedido.get_estado_display }}</span>
+                            <a href="{% url 'clientes:editar_pedido' pedido.id_pedido %}" class="btn btn-sm btn-outline-primary shadow-sm" style="padding: 0.15rem 0.4rem;" title="Editar Pedido">
+                                <i class="bi bi-pencil-square"></i>
+                            </a>
+                        </div>
 
                         {% if pedido.estado == 'SEPARADO' %}
                             <a href="{% url 'clientes:marcar_recogido' pedido.id_pedido %}" class="btn btn-sm btn-warning">

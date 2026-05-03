@@ -32,5 +32,5 @@ class AbonoForm(forms.ModelForm):
 
 class AbonoGlobalForm(forms.Form):
     monto = forms.DecimalField(max_digits=15, decimal_places=2, label="Monto a Abonar")
-    cuenta_destino = forms.ModelChoiceField(queryset=Cuenta.objects.all(), label="Cuenta destino")
+    cuenta_destino = forms.ModelChoiceField(queryset=Cuenta.objects.exclude(nombre__contains='Migración'), label="Cuenta destino")
     comprobante = forms.CharField(max_length=100, required=False, label="N° Comprobante / Referencia")

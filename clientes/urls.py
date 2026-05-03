@@ -17,4 +17,5 @@ urlpatterns = [
     path('pedidos/cambio/proveedor/<uuid:pk>/', views.marcar_cambiado_proveedor, name='marcar_cambiado_proveedor'),
     path('pedidos/cambio/entregar/<uuid:pk>/', views.entregar_cambio, name='entregar_cambio'),
     path('pedidos/cancelar/<uuid:pk>/', views.cancelar_venta, name='cancelar_venta'),
+    path('pedidos/editar/<uuid:id_pedido>/', views.editar_pedido, name='editar_pedido'),
 ]
