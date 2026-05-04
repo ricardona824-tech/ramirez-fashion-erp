@@ -138,28 +138,37 @@ def estado_cuenta_cliente(request):
     return render(request, 'reportes/estado_cuenta.html', context)
 
 
-def resumen_cartera(request):
-    # 1. Traemos la lista de todos los clientes
-    clientes = Cliente.objects.all()
+from django.db.models import Sum
+from clientes.models import Cliente
+from cartera.models import Credito, Abono
 
+
+def resumen_cartera(request):
+    # 1. Traemos todos los clientes
+    clientes = Cliente.objects.all()
     lista_cartera = []
     total_general_cartera = 0
 
     for c in clientes:
-        # 2. Sumamos directamente el "saldo_pendiente" de todos los créditos de este cliente
-        saldo = Credito.objects.filter(cliente=c).aggregate(total=Sum('saldo_pendiente'))['total'] or 0
+        # 2. Sumamos el TOTAL de lo que se le ha facturado (Deuda bruta)
+        total_deuda = Credito.objects.filter(cliente=c).aggregate(total=Sum('monto_total'))['total'] or 0
 
-        # 3. Solo incluimos a los que deben dinero o tienen saldo a favor (saldo !=0)
+        # 3. Sumamos el TOTAL de lo que ha pagado o tiene en abonos/devoluciones
+        total_pagos = Abono.objects.filter(cliente=c).aggregate(total=Sum('monto'))['total'] or 0
+
+        # 4. LA RESTA MÁGICA: Si pagos > deuda, el saldo será negativo (A favor)
+        saldo = total_deuda - total_pagos
+
         if saldo != 0:
             lista_cartera.append({
                 'id': c.id,
                 'nombre': c.nombre,
-                'telefono': c.whatsapp,
+                'telefono': c.whatsapp,  # Asegúrate de que sea c.whatsapp o c.celular según tu modelo
                 'saldo': saldo
             })
             total_general_cartera += saldo
 
-    # 4. Ordenamos para que los que más deben salgan arriba
+    # Ordenar: Deudores arriba, saldos a favor al final
     lista_cartera = sorted(lista_cartera, key=lambda x: x['saldo'], reverse=True)
 
     return render(request, 'reportes/resumen_cartera.html', {
