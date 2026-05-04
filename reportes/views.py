@@ -138,37 +138,26 @@ def estado_cuenta_cliente(request):
     return render(request, 'reportes/estado_cuenta.html', context)
 
 
-from django.db.models import Sum
-from clientes.models import Cliente
-from cartera.models import Credito, Abono
-
-from django.db.models import Sum
-from clientes.models import Cliente
-from cartera.modcels import Credito, Abono
-
-
 def resumen_cartera(request):
     clientes = Cliente.objects.all()
     lista_cartera = []
     total_general_cartera = 0
 
     for c in clientes:
-        total_deuda = Credito.objects.filter(cliente=c).aggregate(total=Sum('monto_total'))['total'] or 0
+        # FÓRMULA IDÉNTICA AL DASHBOARD: Solo sumamos 'saldo_pendiente' de créditos 'ACTIVO'
+        saldo = Credito.objects.filter(cliente=c, estado='ACTIVO').aggregate(total=Sum('saldo_pendiente'))['total'] or 0
 
-        # AQUÍ ESTÁ LA MAGIA: Seguimos el cable del abono -> al crédito -> al cliente
-        total_pagos = Abono.objects.filter(credito__cliente=c).aggregate(total=Sum('monto'))['total'] or 0
-
-        saldo = total_deuda - total_pagos
-
+        # Si el saldo no es cero (sea positivo a favor tuyo o negativo a favor del cliente)
         if saldo != 0:
             lista_cartera.append({
                 'id': c.id,
                 'nombre': c.nombre,
-                'telefono': c.whatsapp,
+                'telefono': c.whatsapp,  # Recordando que tu campo se llama whatsapp
                 'saldo': saldo
             })
             total_general_cartera += saldo
 
+    # Ordenar: Los deudores arriba, los saldos a favor al final
     lista_cartera = sorted(lista_cartera, key=lambda x: x['saldo'], reverse=True)
 
     return render(request, 'reportes/resumen_cartera.html', {
