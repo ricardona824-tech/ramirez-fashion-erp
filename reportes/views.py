@@ -149,8 +149,8 @@ def resumen_cartera(request):
         # 2. Sumamos directamente el "saldo_pendiente" de todos los créditos de este cliente
         saldo = Credito.objects.filter(cliente=c).aggregate(total=Sum('saldo_pendiente'))['total'] or 0
 
-        # 3. Solo incluimos a los que deben dinero (saldo > 0)
-        if saldo > 0:
+        # 3. Solo incluimos a los que deben dinero o tienen saldo a favor (saldo !=0)
+        if saldo != 0:
             lista_cartera.append({
                 'id': c.id,
                 'nombre': c.nombre,
