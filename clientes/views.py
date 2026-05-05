@@ -52,14 +52,29 @@ def editar_cliente(request, pk):
 
 
 def lista_pedidos(request):
-    pedidos = Pedido.objects.all()
+    pedidos = Pedido.objects.select_related('cliente').order_by('-fecha_registro')
+
     query = request.GET.get('q', '')
+
     if query:
         pedidos = pedidos.filter(
             Q(cliente__nombre__icontains=query) |
             Q(proveedor__icontains=query) |
             Q(producto__icontains=query)
         ).distinct()
+    else:
+        # 2. EL ARCHIVADO: Si la pantalla carga normal (sin buscar),
+        # ocultamos los de la fecha de migración que ya están cerrados.
+        pedidos = pedidos.exclude(
+            fecha_registro__year=2026,
+            fecha_registro__month=4,
+            fecha_registro__day=30,
+            estado__in=['ENTREGADO', 'CANCELADO']
+        )
+
+        # 3. LÍMITE DE PANTALLA: Solo mostramos los últimos 100 registros para que cargue en milisegundos.
+        pedidos = pedidos[:100]
+
     return render(request, 'clientes/lista_pedidos.html', {
         'pedidos': pedidos,
         'query': query
