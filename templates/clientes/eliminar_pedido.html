@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card border-danger shadow">
+                <div class="card-header bg-danger text-white text-center">
+                    <h4><i class="bi bi-exclamation-triangle-fill"></i> Eliminar Pedido</h4>
+                </div>
+                <div class="card-body text-center">
+                    <h5 class="card-title mt-2">¿Estás completamente seguro?</h5>
+                    <p class="card-text text-muted mb-4">
+                        Estás a punto de eliminar el pedido de <strong>{{ pedido.producto }}</strong> 
+                        para el cliente <strong>{{ pedido.cliente.nombre }}</strong>. <br>
+                        Esta acción <strong>no se puede deshacer</strong>.
+                    </p>
+
+                    <form method="POST">
+                        {% csrf_token %}
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+                            <a href="{% url 'clientes:lista_pedidos' %}" class="btn btn-secondary px-4">
+                                <i class="bi bi-arrow-left"></i> Cancelar
+                            </a>
+                            <button type="submit" class="btn btn-danger px-4">
+                                <i class="bi bi-trash-fill"></i> Sí, Eliminar Pedido
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

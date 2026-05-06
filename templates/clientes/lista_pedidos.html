@@ -62,6 +62,9 @@
                             <a href="{% url 'clientes:editar_pedido' pedido.id_pedido %}" class="btn btn-sm btn-outline-primary shadow-sm" style="padding: 0.15rem 0.4rem;" title="Editar Pedido">
                                 <i class="bi bi-pencil-square"></i>
                             </a>
+                            <a href="{% url 'clientes:eliminar_pedido' pedido.id_pedido %}" class="btn btn-sm btn-outline-danger shadow-sm" style="padding: 0.15rem 0.4rem;" title="Eliminar Pedido">
+                                <i class="bi bi-trash"></i>
+                            </a>
                         </div>
 
                         <div class="d-flex flex-column gap-1 mt-1">

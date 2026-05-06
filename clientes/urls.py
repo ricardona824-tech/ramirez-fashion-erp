@@ -19,4 +19,5 @@ urlpatterns = [
     path('pedidos/cancelar/<uuid:pk>/', views.cancelar_venta, name='cancelar_venta'),
     path('pedidos/editar/<uuid:id_pedido>/', views.editar_pedido, name='editar_pedido'),
     path('pedidos/pagar-proveedor/<uuid:id_pedido>/', views.registrar_pago_proveedor, name='registrar_pago_proveedor'),
+    path('pedidos/eliminar/<uuid:pk>/', views.eliminar_pedido, name='eliminar_pedido'),
 ]

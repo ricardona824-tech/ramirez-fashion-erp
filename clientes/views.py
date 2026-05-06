@@ -336,3 +336,18 @@ def editar_pedido(request, id_pedido):
         'form': form,
         'titulo': f'Editar Pedido - {pedido.cliente.nombre}'
     })
+
+
+def eliminar_pedido(request, pk):
+    # Buscamos el pedido por su ID
+    pedido = get_object_or_404(Pedido, pk=pk)
+
+    # Si el usuario hace clic en el botón rojo de confirmación (POST)
+    if request.method == 'POST':
+        producto_nombre = pedido.producto
+        pedido.delete()
+        messages.success(request, f"El pedido de {producto_nombre} fue eliminado correctamente.")
+        return redirect('clientes:lista_pedidos')
+
+    # Si solo está entrando a ver la pantalla de confirmación (GET)
+    return render(request, 'clientes/eliminar_pedido.html', {'pedido': pedido})
