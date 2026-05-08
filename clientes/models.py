@@ -24,6 +24,21 @@ class Cliente(models.Model):
         return f"{self.nombre} - {self.whatsapp}"
 
 
+class Proveedor(models.Model):
+    nombre = models.CharField(max_length=100, unique=True)
+    telefono = models.CharField(max_length=20, blank=True, null=True)
+    whatsapp = models.CharField(max_length=20, blank=True, null=True)
+    # Aquí vive la magia del monedero virtual
+    saldo_a_favor = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+
+    def __str__(self):
+        return self.nombre
+
+    class Meta:
+        verbose_name = "Proveedor"
+        verbose_name_plural = "Proveedores"
+
+
 class Pedido(models.Model):
     """
     Modelo para el Registro de Pedido y Trazabilidad (HU 02 y HU 03).

@@ -8,6 +8,9 @@ from tesoreria.models import Cuenta, Movimiento
 from cartera.models import Credito
 from .forms import ClienteForm, PedidoForm, PagarProveedorForm, CobrarClienteForm
 from .forms import CancelarVentaForm
+from django.http import HttpResponse
+from clientes.models import Proveedor
+from clientes.models import Pedido
 
 
 def lista_clientes(request):
@@ -351,3 +354,21 @@ def eliminar_pedido(request, pk):
 
     # Si solo está entrando a ver la pantalla de confirmación (GET)
     return render(request, 'clientes/eliminar_pedido.html', {'pedido': pedido})
+
+
+def unificar_proveedores(request):
+    # 1. Buscamos todos los pedidos que tengan algo escrito en "proveedor"
+    pedidos = Pedido.objects.exclude(proveedor__isnull=True).exclude(proveedor__exact='')
+    proveedores_creados = 0
+
+    for pedido in pedidos:
+        # 2. LIMPIEZA AUTOMÁTICA: quitamos espacios extra y convertimos a mayúsculas
+        nombre_limpio = pedido.proveedor.strip().upper()
+
+        # 3. get_or_create es mágico: si "ZARA" ya existe, lo ignora. Si no, lo crea.
+        obj, creado = Proveedor.objects.get_or_create(nombre=nombre_limpio)
+
+        if creado:
+            proveedores_creados += 1
+
+    return HttpResponse(f"¡Limpieza exitosa! Se encontraron y crearon {proveedores_creados} proveedores únicos.")
