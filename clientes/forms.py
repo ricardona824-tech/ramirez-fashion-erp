@@ -1,5 +1,6 @@
 from django import forms
-from .models import Cliente, Pedido
+from .models import Cliente, Pedido, Proveedor
+from tesoreria.models import Cuenta
 from tesoreria.models import Cuenta
 
 
@@ -14,22 +15,29 @@ class ClienteForm(forms.ModelForm):
             'ciudad': forms.TextInput(attrs={'class': 'form-control form-control-lg', 'placeholder': 'Ej. Medellín'}),
         }
 
+
 class PedidoForm(forms.ModelForm):
     class Meta:
         model = Pedido
-        # Campos exactos según la HU 02
-        fields = ['cliente', 'producto', 'talla', 'color', 'proveedor', 'precio_costo', 'precio_venta']
+        fields = ['cliente', 'producto', 'talla', 'color', 'proveedor_oficial', 'precio_costo', 'precio_venta']
         widgets = {
             'cliente': forms.Select(attrs={'class': 'form-select form-select-lg'}),
             'producto': forms.TextInput(attrs={'class': 'form-control form-control-lg', 'placeholder': 'Ej. Camisa Oversize'}),
             'talla': forms.TextInput(attrs={'class': 'form-control form-control-lg', 'placeholder': 'Ej. M'}),
             'color': forms.TextInput(attrs={'class': 'form-control form-control-lg', 'placeholder': 'Ej. Negro'}),
-            'proveedor': forms.TextInput(attrs={'class': 'form-control form-control-lg', 'placeholder': 'Ej. Proveedor Textil SAS'}),
+            'proveedor_oficial': forms.Select(attrs={'class': 'form-select form-select-lg'}),
             'precio_costo': forms.NumberInput(attrs={'class': 'form-control form-control-lg', 'placeholder': 'Ej. 35000'}),
             'precio_venta': forms.NumberInput(attrs={'class': 'form-control form-control-lg', 'placeholder': 'Ej. 70000'}),
         }
 
-from tesoreria.models import Cuenta
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Ordenar alfabéticamente la lista de proveedores
+        self.fields['proveedor_oficial'].queryset = Proveedor.objects.all().order_by('nombre')
+        # Cambiamos la etiqueta para que el usuario siga viendo "Proveedor" en pantalla
+        self.fields['proveedor_oficial'].label = "Proveedor"
+        self.fields['proveedor_oficial'].empty_label = "--- Seleccione un Proveedor ---"
+
 
 class PagarProveedorForm(forms.Form):
     """Formulario para elegir la cuenta al pagar un pedido (HU 05)."""
@@ -38,6 +46,7 @@ class PagarProveedorForm(forms.Form):
         widget=forms.Select(attrs={'class': 'form-select form-select-lg'}),
         label="Cuenta origen del pago"
     )
+
 
 class CobrarClienteForm(forms.Form):
     """Formulario para elegir cómo paga el cliente al entregar (HU 08)."""

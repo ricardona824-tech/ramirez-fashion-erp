@@ -54,7 +54,13 @@
                     <td>{{ pedido.fecha_registro|date:"d/m/Y H:i" }}</td>
                     <td>{{ pedido.cliente.nombre }}</td>
                     <td>{{ pedido.producto }} ({{ pedido.talla }} - {{ pedido.color }})</td>
-                    <td>{{ pedido.proveedor }}</td>
+                    <td>
+                        {% if pedido.proveedor_oficial %}
+                            <span class="fw-bold">{{ pedido.proveedor_oficial.nombre }}</span>
+                        {% else %}
+                            {{ pedido.proveedor }}
+                        {% endif %}
+                    </td>
                     <td>${{ pedido.precio_venta }}</td>
                     <td>
                         <div class="d-flex align-items-center gap-2 mb-2">

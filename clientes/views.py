@@ -9,8 +9,7 @@ from cartera.models import Credito
 from .forms import ClienteForm, PedidoForm, PagarProveedorForm, CobrarClienteForm
 from .forms import CancelarVentaForm
 from django.http import HttpResponse
-from clientes.models import Proveedor
-from clientes.models import Pedido
+from clientes.models import Proveedor, Pedido
 
 
 def lista_clientes(request):
@@ -357,18 +356,20 @@ def eliminar_pedido(request, pk):
 
 
 def unificar_proveedores(request):
-    # 1. Buscamos todos los pedidos que tengan algo escrito en "proveedor"
-    pedidos = Pedido.objects.exclude(proveedor__isnull=True).exclude(proveedor__exact='')
-    proveedores_creados = 0
+    # Buscamos pedidos que tengan texto en el viejo campo pero que aún no tengan el oficial
+    pedidos = Pedido.objects.exclude(proveedor__isnull=True).exclude(proveedor__exact='').filter(
+        proveedor_oficial__isnull=True)
+    vinculados = 0
 
     for pedido in pedidos:
-        # 2. LIMPIEZA AUTOMÁTICA: quitamos espacios extra y convertimos a mayúsculas
         nombre_limpio = pedido.proveedor.strip().upper()
 
-        # 3. get_or_create es mágico: si "ZARA" ya existe, lo ignora. Si no, lo crea.
-        obj, creado = Proveedor.objects.get_or_create(nombre=nombre_limpio)
+        # Buscamos el proveedor en la tabla nueva
+        prov = Proveedor.objects.filter(nombre=nombre_limpio).first()
 
-        if creado:
-            proveedores_creados += 1
+        if prov:
+            pedido.proveedor_oficial = prov
+            pedido.save()
+            vinculados += 1
 
-    return HttpResponse(f"¡Limpieza exitosa! Se encontraron y crearon {proveedores_creados} proveedores únicos.")
+    return HttpResponse(f"¡Éxito! Se conectaron {vinculados} pedidos con su proveedor oficial en la nueva tabla.")

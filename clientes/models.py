@@ -67,6 +67,8 @@ class Pedido(models.Model):
     talla = models.CharField(max_length=50, verbose_name="Talla")
     color = models.CharField(max_length=50, verbose_name="Color")
     proveedor = models.CharField(max_length=255, verbose_name="Proveedor")
+    proveedor_oficial = models.ForeignKey('Proveedor', on_delete=models.SET_NULL, null=True, blank=True,
+                                          related_name='pedidos')
 
     # Finanzas en Pesos Colombianos (COP)
     precio_costo = models.DecimalField(max_digits=12, decimal_places=2, verbose_name="Precio Costo (COP)")
