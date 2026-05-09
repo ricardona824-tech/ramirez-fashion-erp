@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+{% load humanize %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-7">
+
+            {% if messages %}
+                {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show shadow-sm">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+                {% endfor %}
+            {% endif %}
+            <div class="card border-success shadow">
+                <div class="card-header bg-success text-white text-center">
+                    <h4><i class="bi bi-wallet2"></i> Registrar Bono y Cerrar Pedido</h4>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info text-center">
+                        <strong>¿Qué pasará al confirmar?</strong><br>
+                        1. Se sumarán <strong>${{ pedido.precio_costo|floatformat:0|intcomma }}</strong> al saldo del proveedor.<br>
+                        2. El pedido se marcará como <strong>CANCELADO</strong>.<br>
+                        3. Se resolverá la cuenta del cliente por <strong>${{ pedido.precio_venta|floatformat:0|intcomma }}</strong>.
+                    </div>
+
+                    <form method="POST" novalidate>
+                        {% csrf_token %}
+
+                        <h5 class="border-bottom pb-2 mb-3">Compensación al Cliente</h5>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">¿Cómo se resuelve con el cliente?</label>
+                            {{ form.tipo_reembolso_cliente }}
+                            <small class="text-muted d-block mt-1">
+                                <strong>CONTADO:</strong> Devuelves el dinero en efectivo/transferencia.<br>
+                                <strong>CREDITO:</strong> Se anula la deuda pendiente en su cartera.
+                            </small>
+                        </div>
+
+                        <div id="seccion_cuenta" class="mb-4 p-3 bg-light rounded border" style="display:none;">
+                            <label class="form-label fw-bold text-danger">Cuenta de donde sale el dinero:</label>
+                            {{ form.cuenta_cliente }}
+                        </div>
+
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-center mt-4">
+                            <a href="{% url 'clientes:lista_pedidos' %}" class="btn btn-secondary px-4">
+                                <i class="bi bi-arrow-left"></i> Volver
+                            </a>
+                            <button type="submit" class="btn btn-success px-4" formnovalidate>
+                                <i class="bi bi-check-circle-fill"></i> Confirmar y Procesar
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Lógica para mostrar/ocultar la cuenta según el tipo de reembolso
+    const selectTipo = document.querySelector('select[name="tipo_reembolso_cliente"]');
+    const divCuenta = document.getElementById('seccion_cuenta');
+
+    function toggleCuenta() {
+        if (selectTipo.value === 'CONTADO') {
+            divCuenta.style.display = 'block';
+        } else {
+            divCuenta.style.display = 'none';
+        }
+    }
+
+    selectTipo.addEventListener('change', toggleCuenta);
+    toggleCuenta(); // Ejecutar al cargar
+</script>
+{% endblock %}

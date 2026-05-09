@@ -73,16 +73,17 @@ def estado_cuenta_cliente(request):
 
         # 1. Traer toda la historia: Créditos (Deudas) y Abonos (Pagos)
         creditos = Credito.objects.filter(cliente_id=cliente_id)
-        abonos = Abono.objects.filter(credito__cliente_id=cliente_id)
+        # Convertimos los abonos a una lista en memoria para poder cruzarlos más rápido
+        lista_abonos = list(Abono.objects.filter(credito__cliente_id=cliente_id))
 
         historial = []
         for c in creditos:
-            # Verificamos si el crédito viene de un pedido de ropa específico
             if c.pedido and c.pedido.producto:
                 texto_detalle = f"Compra: {c.pedido.producto}"
             else:
                 texto_detalle = f"Nueva deuda (Crédito #{c.id})"
 
+            # A. Registramos el cargo original
             historial.append({
                 'fecha': c.fecha_registro,
                 'detalle': texto_detalle,
@@ -91,7 +92,25 @@ def estado_cuenta_cliente(request):
                 'es_cargo': True
             })
 
-        for a in abonos:
+            # --- EL PARCHE INTELIGENTE ---
+            # Sumamos cuánto dinero real ha pagado el cliente a este crédito específico
+            total_pagado_real = sum(a.monto for a in lista_abonos if a.credito_id == c.id)
+
+            # Calculamos si hubo un "descuento" o "anulación" (Deuda original - Pagos Reales - Lo que aún debe)
+            ajuste = c.monto_total - total_pagado_real - c.saldo_pendiente
+
+            if ajuste > 0:
+                historial.append({
+                    'fecha': c.fecha_registro,
+                    'detalle': f"Ajuste / Anulación de Deuda",
+                    'cargo': 0,
+                    'abono': ajuste,
+                    'es_cargo': False
+                })
+            # -----------------------------
+
+        # B. Registramos los abonos físicos
+        for a in lista_abonos:
             historial.append({
                 'fecha': a.fecha,
                 'detalle': f"Abono recibido",

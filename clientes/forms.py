@@ -110,3 +110,14 @@ class CancelarVentaForm(forms.Form):
         if tipo_reembolso == 'CONTADO' and not cuenta_cliente:
             self.add_error('cuenta_cliente', 'Debe seleccionar una cuenta para sacar el dinero del reembolso.')
         return cleaned_data
+
+
+class ProveedorForm(forms.ModelForm):
+    class Meta:
+        model = Proveedor
+        fields = ['nombre', 'telefono', 'whatsapp']
+        widgets = {
+            'nombre': forms.TextInput(attrs={'class': 'form-control form-control-lg', 'placeholder': 'Ej. ZARA'}),
+            'telefono': forms.TextInput(attrs={'class': 'form-control form-control-lg', 'placeholder': 'Ej. 3001234567'}),
+            'whatsapp': forms.TextInput(attrs={'class': 'form-control form-control-lg', 'placeholder': 'Ej. 573001234567'}),
+        }

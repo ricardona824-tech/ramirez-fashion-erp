@@ -20,5 +20,8 @@ urlpatterns = [
     path('pedidos/editar/<uuid:id_pedido>/', views.editar_pedido, name='editar_pedido'),
     path('pedidos/pagar-proveedor/<uuid:id_pedido>/', views.registrar_pago_proveedor, name='registrar_pago_proveedor'),
     path('pedidos/eliminar/<uuid:pk>/', views.eliminar_pedido, name='eliminar_pedido'),
+    path('pedidos/bono-proveedor/<uuid:pk>/', views.registrar_bono_proveedor, name='registrar_bono_proveedor'),
+    path('proveedores/', views.lista_proveedores, name='lista_proveedores'),
+    path('proveedores/nuevo/', views.crear_proveedor, name='crear_proveedor'),
     path('herramientas/unificar-proveedores/', views.unificar_proveedores, name='unificar_proveedores'),
 ]

@@ -2,7 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.db.models import Q
 from django.contrib import messages
 from .models import Cliente, Pedido
-from .forms import ClienteForm, PedidoForm
+from .forms import ClienteForm, PedidoForm, ProveedorForm
 from django.db import transaction
 from tesoreria.models import Cuenta, Movimiento
 from cartera.models import Credito
@@ -10,6 +10,7 @@ from .forms import ClienteForm, PedidoForm, PagarProveedorForm, CobrarClienteFor
 from .forms import CancelarVentaForm
 from django.http import HttpResponse
 from clientes.models import Proveedor, Pedido
+from decimal import Decimal
 
 
 def lista_clientes(request):
@@ -136,34 +137,110 @@ def registrar_pago_proveedor(request, id_pedido):
         messages.warning(request, "Este pedido ya fue pagado al proveedor.")
         return redirect('clientes:lista_pedidos')
 
+    proveedor = pedido.proveedor_oficial
+    # Aseguramos que el saldo disponible sea tipo Decimal
+    saldo_disponible = proveedor.saldo_a_favor if proveedor else Decimal('0')
+
     if request.method == 'POST':
         form = PagarProveedorForm(request.POST)
-        if form.is_valid():
-            cuenta = form.cleaned_data['cuenta_origen']
 
-            if cuenta.saldo_actual < pedido.precio_costo:
-                messages.error(request, f"Saldo insuficiente en {cuenta.nombre}.")
+        # 1. Obtenemos el valor del bono digitado y lo convertimos a Decimal de forma segura
+        monto_bono_str = request.POST.get('monto_bono', '0')
+        if not monto_bono_str:  # Por si envían el campo vacío
+            monto_bono_str = '0'
+        monto_bono_usar = Decimal(monto_bono_str)
+
+        # 2. Calculamos el faltante con matemáticas exactas
+        monto_faltante = pedido.precio_costo - monto_bono_usar
+
+        # 3. Validaciones de seguridad
+        if monto_bono_usar > saldo_disponible:
+            messages.error(request, "No puedes usar más bono del que tienes disponible.")
+        elif monto_bono_usar > pedido.precio_costo:
+            messages.error(request, "El bono no puede ser mayor al costo del pedido.")
+        else:
+            # Si hay que pagar algo con dinero real...
+            if monto_faltante > Decimal('0'):
+                if form.is_valid():
+                    cuenta = form.cleaned_data['cuenta_origen']
+                    if cuenta.saldo_actual < monto_faltante:
+                        messages.error(request, f"Saldo insuficiente en {cuenta.nombre} para cubrir el excedente.")
+                        return render(request, 'clientes/pagar_proveedor.html',
+                                      {'form': form, 'pedido': pedido, 'saldo_disponible': saldo_disponible})
+
+                    with transaction.atomic():
+                        # A. Descontar del bono (Perfil del proveedor y Tesorería)
+                        if monto_bono_usar > Decimal('0'):
+                            proveedor.saldo_a_favor -= monto_bono_usar
+                            proveedor.save()
+
+                            # Conexión con la cuenta BONOS Y AJUSTES
+                            Cuenta = Movimiento._meta.get_field('cuenta').related_model
+                            cuenta_bonos = Cuenta.objects.filter(nombre__icontains="BONOS").first()
+
+                            if cuenta_bonos:
+                                cuenta_bonos.saldo_actual -= monto_bono_usar
+                                cuenta_bonos.save()
+                                Movimiento.objects.create(
+                                    cuenta=cuenta_bonos,
+                                    tipo='EGRESO',
+                                    monto=monto_bono_usar,
+                                    concepto=f"Uso de bono para pago parcial - Proveedor: {proveedor.nombre}",
+                                    referencia_pedido=str(pedido.id_pedido)
+                                )
+
+                        # B. Descontar de tesorería el excedente (Dinero real)
+                        cuenta.saldo_actual -= monto_faltante
+                        cuenta.save()
+
+                        # C. Registro contable por el dinero real que salió
+                        Movimiento.objects.create(
+                            cuenta=cuenta, tipo='EGRESO', monto=monto_faltante,
+                            concepto=f"Pago parcial a {proveedor.nombre} (Bono: ${int(monto_bono_usar)} | Efectivo: ${int(monto_faltante)})",
+                            referencia_pedido=str(pedido.id_pedido)
+                        )
+
+                        pedido.pagado_al_proveedor = True
+                        pedido.save()
+
+                    messages.success(request,
+                                     f"¡Pago exitoso! Se usaron ${int(monto_bono_usar):,} de bono y ${int(monto_faltante):,} de {cuenta.nombre}.")
+                    return redirect('clientes:lista_pedidos')
             else:
+                # El bono cubrió el 100% del pago
                 with transaction.atomic():
-                    # Marcamos como pagado financieramente
+                    proveedor.saldo_a_favor -= monto_bono_usar
+                    proveedor.save()
+
+                    # Conexión con la cuenta BONOS Y AJUSTES
+                    Cuenta = Movimiento._meta.get_field('cuenta').related_model
+                    cuenta_bonos = Cuenta.objects.filter(nombre__icontains="BONOS").first()
+
+                    if cuenta_bonos:
+                        cuenta_bonos.saldo_actual -= monto_bono_usar
+                        cuenta_bonos.save()
+                        Movimiento.objects.create(
+                            cuenta=cuenta_bonos,
+                            tipo='EGRESO',
+                            monto=monto_bono_usar,
+                            concepto=f"Uso de bono para pago total - Proveedor: {proveedor.nombre}",
+                            referencia_pedido=str(pedido.id_pedido)
+                        )
+
                     pedido.pagado_al_proveedor = True
                     pedido.save()
 
-                    # Restamos el dinero
-                    cuenta.saldo_actual -= pedido.precio_costo
-                    cuenta.save()
-
-                    # Registro contable
-                    Movimiento.objects.create(
-                        cuenta=cuenta, tipo='EGRESO', monto=pedido.precio_costo,
-                        concepto=f"Pago a {pedido.proveedor} por {pedido.producto}",
-                        referencia_pedido=str(pedido.id_pedido)
-                    )
-                messages.success(request, f"¡Pago de ${int(pedido.precio_costo):,} registrado!")
+                messages.success(request, f"¡Pago exitoso! El bono cubrió el 100% del costo.")
                 return redirect('clientes:lista_pedidos')
+
     else:
         form = PagarProveedorForm()
-    return render(request, 'clientes/pagar_proveedor.html', {'form': form, 'pedido': pedido})
+
+    return render(request, 'clientes/pagar_proveedor.html', {
+        'form': form,
+        'pedido': pedido,
+        'saldo_disponible': saldo_disponible
+    })
 
 
 def marcar_recogido(request, pk):
@@ -373,3 +450,144 @@ def unificar_proveedores(request):
             vinculados += 1
 
     return HttpResponse(f"¡Éxito! Se conectaron {vinculados} pedidos con su proveedor oficial en la nueva tabla.")
+
+
+def registrar_bono_proveedor(request, pk):
+    pedido = get_object_or_404(Pedido, pk=pk)
+    proveedor = pedido.proveedor_oficial
+
+    if not proveedor:
+        messages.error(request, "Este pedido no tiene un proveedor oficial asignado.")
+        return redirect('clientes:lista_pedidos')
+
+    if request.method == 'POST':
+        form = CancelarVentaForm(request.POST)
+
+        # Apagamos validaciones automáticas
+        if 'cuenta_proveedor' in form.fields: form.fields['cuenta_proveedor'].required = False
+        if 'cuenta_cliente' in form.fields: form.fields['cuenta_cliente'].required = False
+
+        if form.is_valid():
+            with transaction.atomic():
+                # --- 1. PROVEEDOR Y TESORERÍA: Cargamos el bono a su billetera y a cuentas ---
+                monto_bono = pedido.precio_costo
+                proveedor.saldo_a_favor += monto_bono
+                proveedor.save()
+
+                # Obtenemos el modelo Cuenta de forma segura a través de Movimiento (que ya está importado)
+                Cuenta = Movimiento._meta.get_field('cuenta').related_model
+
+                # Buscamos la cuenta puente (BONOS Y AJUSTES)
+                cuenta_bonos = Cuenta.objects.filter(nombre__icontains="BONOS").first()
+
+                if cuenta_bonos:
+                    # Sumamos el saldo a la cuenta de Tesorería
+                    cuenta_bonos.saldo_actual += monto_bono
+                    cuenta_bonos.save()
+
+                    # Dejamos la trazabilidad del ingreso del bono en Tesorería
+                    Movimiento.objects.create(
+                        cuenta=cuenta_bonos,
+                        tipo='INGRESO',
+                        monto=monto_bono,
+                        concepto=f"Bono a favor - Proveedor: {proveedor.nombre} (Prod: {pedido.producto})",
+                        referencia_pedido=str(pedido.id_pedido)
+                    )
+
+                # --- 2. CLIENTE: Resolvemos la situación ---
+                tipo_reembolso = form.cleaned_data['tipo_reembolso_cliente']
+
+                if tipo_reembolso == 'CONTADO':
+                    cuenta_cli = form.cleaned_data['cuenta_cliente']
+                    cuenta_cli.saldo_actual -= pedido.precio_venta
+                    cuenta_cli.save()
+                    # Movimiento ya está importado en la parte de arriba de tu archivo views.py
+                    Movimiento.objects.create(
+                        cuenta=cuenta_cli, tipo='EGRESO', monto=pedido.precio_venta,
+                        concepto=f"Reembolso por bono proveedor - {pedido.producto}",
+                        referencia_pedido=str(pedido.id_pedido)
+                    )
+
+                elif tipo_reembolso == 'CREDITO':
+                    from django.apps import apps
+                    Credito = apps.get_model('cartera', 'Credito')
+                    Abono = apps.get_model('cartera', 'Abono')
+
+                    credito_real = Credito.objects.filter(pedido=pedido, estado='ACTIVO').first()
+
+                    if credito_real:
+                        monto_deuda = credito_real.saldo_pendiente
+
+                        # Si la cuenta no se encontró arriba, aplicamos un fallback de seguridad
+                        if not cuenta_bonos:
+                            cuenta_bonos = Cuenta.objects.first()
+
+                        # A. Creamos el ABONO para que aparezca en el "Estado de Cuenta"
+                        Abono.objects.create(
+                            credito=credito_real,
+                            monto=monto_deuda,
+                            cuenta_destino=cuenta_bonos,
+                            comprobante=f"DEV-{pedido.id_pedido}"[:20]
+                        )
+
+                        # B. Creamos el MOVIMIENTO para la trazabilidad de la deuda perdonada
+                        Movimiento.objects.create(
+                            cuenta=cuenta_bonos,
+                            tipo='INGRESO',
+                            monto=monto_deuda,
+                            concepto=f"Cruce por devolución: {pedido.producto} (Cliente: {pedido.cliente.nombre})",
+                            referencia_pedido=str(pedido.id_pedido)
+                        )
+
+                        # C. Seteamos la deuda en 0
+                        credito_real.saldo_pendiente = 0
+                        credito_real.estado = 'PAGADO'
+                        credito_real.save()
+
+                # --- 3. PEDIDO: Cerramos ---
+                pedido.estado = 'CANCELADO'
+                pedido.save()
+
+            messages.success(request,
+                             f"¡Éxito! Se generó el bono de ${int(monto_bono):,} y se cruzó la deuda del cliente.")
+            return redirect('clientes:lista_pedidos')
+        else:
+            for field, errors in form.errors.items():
+                for error in errors:
+                    messages.error(request, f"Revisa el campo {field}: {error}")
+    else:
+        form = CancelarVentaForm()
+
+    return render(request, 'clientes/confirmar_bono.html', {'pedido': pedido, 'form': form})
+
+
+def lista_proveedores(request):
+    # Traemos todos los proveedores, pero ponemos primero a los que tienen saldo a favor
+    proveedores = Proveedor.objects.all().order_by('-saldo_a_favor', 'nombre')
+
+    # Calculamos el total de bonos que tenemos en la calle para el resumen
+    total_bonos = sum(p.saldo_a_favor for p in proveedores)
+
+    return render(request, 'clientes/lista_proveedores.html', {
+        'proveedores': proveedores,
+        'total_bonos': total_bonos
+    })
+
+
+def crear_proveedor(request):
+    if request.method == 'POST':
+        form = ProveedorForm(request.POST)
+        if form.is_valid():
+            # Guardamos y limpiamos el nombre a mayúsculas automáticamente
+            proveedor = form.save(commit=False)
+            proveedor.nombre = proveedor.nombre.strip().upper()
+            proveedor.save()
+            messages.success(request, f"Proveedor {proveedor.nombre} creado exitosamente.")
+            return redirect('clientes:lista_proveedores')
+    else:
+        form = ProveedorForm()
+
+    return render(request, 'clientes/proveedor_form.html', {
+        'form': form,
+        'titulo': 'Nuevo Proveedor'
+    })
