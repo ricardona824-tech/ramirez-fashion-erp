@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6 col-lg-5">
+            <div class="card shadow border-0">
+                <div class="card-header bg-primary text-white text-center py-3">
+                    <h4 class="mb-0"><i class="bi bi-shop"></i> Asignar Proveedor en Lote</h4>
+                </div>
+                <div class="card-body p-4">
+                    <div class="alert alert-info text-center">
+                        Has seleccionado <strong class="fs-5">{{ pedidos|length }}</strong> pedidos para actualizar.
+                    </div>
+                    
+                    <form method="POST" action="{% url 'clientes:ejecutar_acciones_masivas' %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="accion" value="{{ accion }}">
+                        <input type="hidden" name="pedidos_ids" value="{{ pedidos_ids }}">
+                        
+                        <div class="mb-4 mt-3">
+                            <label class="form-label fw-bold text-secondary">¿A qué proveedor pertenecen estos pedidos?</label>
+                            <select name="nuevo_proveedor_id" class="form-select form-select-lg border-primary shadow-sm" required>
+                                <option value="" selected disabled>-- Selecciona un proveedor --</option>
+                                {% for p in proveedores %}
+                                    <option value="{{ p.id }}">{{ p.nombre }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                            <a href="{% url 'clientes:lista_pedidos' %}" class="btn btn-light border">Cancelar</a>
+                            <button type="submit" class="btn btn-success px-4">
+                                <i class="bi bi-check-circle"></i> Guardar Cambios
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

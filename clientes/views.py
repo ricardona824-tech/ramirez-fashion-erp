@@ -55,7 +55,8 @@ def editar_cliente(request, pk):
 
 
 def lista_pedidos(request):
-    pedidos = Pedido.objects.select_related('cliente').order_by('-fecha_registro')
+    # BONUS DE VELOCIDAD: Agregamos 'proveedor_oficial' aquí para que Django no haga 100 consultas a la base de datos
+    pedidos = Pedido.objects.select_related('cliente', 'proveedor_oficial').order_by('-fecha_registro')
 
     query = request.GET.get('q', '')
 
@@ -63,6 +64,7 @@ def lista_pedidos(request):
         pedidos = pedidos.filter(
             Q(cliente__nombre__icontains=query) |
             Q(proveedor__icontains=query) |
+            Q(proveedor_oficial__nombre__icontains=query) |  # ¡EL SUPERPODER DEL BUSCADOR!
             Q(producto__icontains=query)
         ).distinct()
     else:
@@ -591,3 +593,69 @@ def crear_proveedor(request):
         'form': form,
         'titulo': 'Nuevo Proveedor'
     })
+
+
+def ejecutar_acciones_masivas(request):
+    if request.method == 'POST':
+        accion = request.POST.get('accion')
+        pedidos_ids_str = request.POST.get('pedidos_ids', '')
+
+        if not accion or not pedidos_ids_str:
+            messages.error(request, "Error: Faltan datos para la acción masiva.")
+            return redirect('clientes:lista_pedidos')
+
+        # Convertimos el texto "1,2,3" en una lista y buscamos esos pedidos en la base de datos
+        lista_ids = pedidos_ids_str.split(',')
+        pedidos = Pedido.objects.filter(id_pedido__in=lista_ids)
+
+        # ---------------------------------------------------------
+        # ACCIÓN DIRECTA: Marcar como Recogidos
+        # ---------------------------------------------------------
+        if accion == 'marcar_recogidos':
+            # Filtramos por seguridad para afectar solo a los que estén 'SEPARADO'
+            pedidos_validos = pedidos.filter(estado='SEPARADO')
+            cantidad = pedidos_validos.count()
+
+            # El comando .update() guarda todos los cambios en 1 segundo sin usar ciclos for
+            pedidos_validos.update(estado='RECOGIDO')
+
+            messages.success(request, f"¡Éxito! {cantidad} pedidos fueron pasados al estado RECOGIDO.")
+            return redirect('clientes:lista_pedidos')
+
+        # ---------------------------------------------------------
+        # ACCIÓN CON PASO INTERMEDIO: Asignar Proveedor
+        # ---------------------------------------------------------
+        elif accion == 'asignar_proveedor':
+            # Usamos nuestro truco maestro para encontrar el modelo Proveedor
+            Proveedor = Pedido._meta.get_field('proveedor_oficial').related_model
+
+            # Verificamos si ya eligieron al proveedor en la pantalla intermedia
+            nuevo_proveedor_id = request.POST.get('nuevo_proveedor_id')
+
+            if nuevo_proveedor_id:
+                # Si ya lo eligieron, hacemos la actualización masiva
+                proveedor_seleccionado = Proveedor.objects.get(id=nuevo_proveedor_id)
+                pedidos.update(proveedor_oficial=proveedor_seleccionado)
+
+                messages.success(request,
+                                 f"¡Éxito! Se asignó {proveedor_seleccionado.nombre} a {pedidos.count()} pedidos.")
+                return redirect('clientes:lista_pedidos')
+            else:
+                # Si no lo han elegido, los mandamos a la pantalla para que lo elijan
+                proveedores = Proveedor.objects.all().order_by('nombre')
+                return render(request, 'clientes/asignar_proveedor_masivo.html', {
+                    'pedidos_ids': pedidos_ids_str,
+                    'pedidos': pedidos,
+                    'proveedores': proveedores,
+                    'accion': accion
+                })
+
+        elif accion == 'pagar_masivo':
+            messages.info(request, "El módulo de pago masivo será nuestro próximo reto.")
+            return redirect('clientes:lista_pedidos')
+
+        else:
+            messages.error(request, "Acción no reconocida.")
+            return redirect('clientes:lista_pedidos')
+
+    return redirect('clientes:lista_pedidos')

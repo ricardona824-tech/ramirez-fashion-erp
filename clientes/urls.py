@@ -8,6 +8,7 @@ urlpatterns = [
     path('nuevo/', views.crear_cliente, name='crear_cliente'),
     path('editar/<int:pk>/', views.editar_cliente, name='editar_cliente'),
     path('pedidos/', views.lista_pedidos, name='lista_pedidos'),
+    path('pedidos/acciones-masivas/', views.ejecutar_acciones_masivas, name='ejecutar_acciones_masivas'),
     path('pedidos/nuevo/', views.crear_pedido, name='crear_pedido'),
     path('separacion/', views.gestion_separacion, name='gestion_separacion'),
     path('pedidos/recoger/<uuid:pk>/', views.marcar_recogido, name='marcar_recogido'),

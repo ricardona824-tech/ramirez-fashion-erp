@@ -36,10 +36,37 @@
         {% endfor %}
     {% endif %}
 
+    <div id="barra-acciones-masivas" class="alert alert-info d-none mb-3 shadow-sm border-info">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <i class="bi bi-check2-square fs-5 me-2"></i>
+                <span id="contador-seleccionados" class="fw-bold">0</span> pedidos seleccionados
+            </div>
+
+            <form id="form-acciones-masivas" method="POST" action="{% url 'clientes:ejecutar_acciones_masivas' %}" class="d-flex align-items-center gap-2">
+                {% csrf_token %}
+                <div class="input-group">
+                    <select name="accion" class="form-select border-primary" required>
+                        <option value="" selected disabled>Elige una acción...</option>
+                        <option value="marcar_recogidos">Marcar como RECOGIDOS</option>
+                        <option value="asignar_proveedor">Asignar Proveedor Oficial (Lote)</option>
+                        <option value="pagar_masivo">Pagar a Proveedor (En lote)</option>
+                        <option value="cancelar_masivo">Cancelar Seleccionados</option>
+                    </select>
+                    <input type="hidden" name="pedidos_ids" id="pedidos-ids-input">
+                    <button type="submit" class="btn btn-primary">Aplicar Acción</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div class="table-responsive">
         <table class="table table-hover align-middle">
             <thead class="table-light">
                 <tr>
+                    <th style="width: 40px;" class="text-center">
+                        <input class="form-check-input border-secondary" type="checkbox" id="checkbox-maestro">
+                    </th>
                     <th>Fecha</th>
                     <th>Cliente</th>
                     <th>Producto</th>
@@ -51,14 +78,17 @@
             <tbody>
                 {% for pedido in pedidos %}
                 <tr>
+                    <td class="text-center">
+                        <input class="form-check-input checkbox-pedido border-secondary" type="checkbox" value="{{ pedido.id_pedido }}">
+                    </td>
                     <td>{{ pedido.fecha_registro|date:"d/m/Y H:i" }}</td>
                     <td>{{ pedido.cliente.nombre }}</td>
                     <td>{{ pedido.producto }} ({{ pedido.talla }} - {{ pedido.color }})</td>
                     <td>
                         {% if pedido.proveedor_oficial %}
-                            <span class="fw-bold">{{ pedido.proveedor_oficial.nombre }}</span>
+                            <span class="fw-bold text-primary">{{ pedido.proveedor_oficial.nombre }}</span>
                         {% else %}
-                            {{ pedido.proveedor }}
+                            <span class="text-muted italic">{{ pedido.proveedor }}</span>
                         {% endif %}
                     </td>
                     <td>${{ pedido.precio_venta }}</td>
@@ -74,7 +104,6 @@
                         </div>
 
                         <div class="d-flex flex-column gap-1 mt-1">
-
                             {% if pedido.estado != 'CANCELADO' %}
                                 {% if not pedido.pagado_al_proveedor %}
                                     <a href="{% url 'clientes:registrar_pago_proveedor' pedido.id_pedido %}" class="btn btn-sm btn-outline-danger text-start">
@@ -91,12 +120,10 @@
                                 <a href="{% url 'clientes:marcar_recogido' pedido.id_pedido %}" class="btn btn-sm btn-warning text-start">
                                     <i class="bi bi-box-seam"></i> Marcar Recogido
                                 </a>
-
                             {% elif pedido.estado == 'RECOGIDO' %}
                                 <a href="{% url 'clientes:entregar_pedido' pedido.id_pedido %}" class="btn btn-sm btn-success text-white text-start">
                                     <i class="bi bi-check2-circle"></i> Entregar / Cobrar
                                 </a>
-
                             {% elif pedido.estado == 'ENTREGADO' %}
                                 <a href="{% url 'clientes:solicitar_cambio' pedido.id_pedido %}" class="btn btn-sm btn-outline-danger text-start">
                                     <i class="bi bi-arrow-return-left"></i> Solicitar Cambio
@@ -104,12 +131,10 @@
                                 <a href="{% url 'clientes:cancelar_venta' pedido.id_pedido %}" class="btn btn-sm btn-danger text-start">
                                     <i class="bi bi-x-circle"></i> Cancelar Venta
                                 </a>
-
                             {% elif pedido.estado == 'DEV_RECOGER' %}
                                 <a href="{% url 'clientes:marcar_recogido_cliente' pedido.id_pedido %}" class="btn btn-sm btn-secondary text-start">
                                     <i class="bi bi-person-dash"></i> Recogí del Cliente
                                 </a>
-
                             {% elif pedido.estado == 'DEV_PROVEEDOR' %}
                                 <a href="{% url 'clientes:marcar_cambiado_proveedor' pedido.id_pedido %}" class="btn btn-sm btn-info text-white text-start">
                                     <i class="bi bi-shop"></i> Cambié en Proveedor
@@ -127,7 +152,7 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="6" class="text-center py-4 text-muted">
+                    <td colspan="7" class="text-center py-4 text-muted">
                         <i class="bi bi-inbox fs-2"></i>
                         <p class="mt-2 mb-0">No se encontraron pedidos con esos criterios.</p>
                     </td>
@@ -137,4 +162,40 @@
         </table>
     </div>
 </div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const cbMaestro = document.getElementById('checkbox-maestro');
+    const checkboxes = document.querySelectorAll('.checkbox-pedido');
+    const barra = document.getElementById('barra-acciones-masivas');
+    const contador = document.getElementById('contador-seleccionados');
+    const inputIds = document.getElementById('pedidos-ids-input');
+
+    function actualizarBarra() {
+        let seleccionados = [];
+        checkboxes.forEach(cb => {
+            if (cb.checked) seleccionados.push(cb.value);
+        });
+
+        contador.textContent = seleccionados.length;
+        inputIds.value = seleccionados.join(',');
+
+        if (seleccionados.length > 0) {
+            barra.classList.remove('d-none');
+        } else {
+            barra.classList.add('d-none');
+            cbMaestro.checked = false;
+        }
+    }
+
+    cbMaestro.addEventListener('change', function() {
+        checkboxes.forEach(cb => cb.checked = cbMaestro.checked);
+        actualizarBarra();
+    });
+
+    checkboxes.forEach(cb => {
+        cb.addEventListener('change', actualizarBarra);
+    });
+});
+</script>
 {% endblock %}
