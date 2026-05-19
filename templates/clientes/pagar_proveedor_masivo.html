@@ -1,0 +1,130 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-lg border-0 rounded-3">
+                <div class="card-header bg-dark text-white py-3 d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0"><i class="bi bi-cash-stack"></i> Pago Masivo a Proveedor</h4>
+                    <span class="badge bg-primary fs-6">{{ proveedor.nombre }}</span>
+                </div>
+
+                <div class="card-body p-4">
+                    <h5 class="text-secondary border-bottom pb-2 mb-3">Resumen de Pedidos Seleccionados</h5>
+                    <div class="table-responsive mb-4">
+                        <table class="table table-sm table-bordered align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Producto</th>
+                                    <th>Cliente</th>
+                                    <th class="text-end">Costo</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for pedido in pedidos %}
+                                <tr>
+                                    <td>{{ pedido.producto }} ({{ pedido.talla }})</td>
+                                    <td>{{ pedido.cliente.nombre }}</td>
+                                    <td class="text-end">${{ pedido.precio_costo }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot class="table-dark">
+                                <tr>
+                                    <td colspan="2" class="text-end fw-bold">TOTAL A PAGAR:</td>
+                                    <td class="text-end fw-bold fs-5" id="total-a-pagar" data-total="{{ total_a_pagar|stringformat:'.2f' }}">${{ total_a_pagar }}</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+
+                    <div class="alert alert-info d-flex justify-content-between align-items-center mb-4 shadow-sm border-info">
+                        <div>
+                            <i class="bi bi-wallet2 fs-4 me-2 text-primary"></i>
+                            <strong>Saldo a Favor (Bonos) de {{ proveedor.nombre }}:</strong>
+                        </div>
+                        <span class="fs-4 fw-bold text-primary" id="saldo-disponible" data-saldo="{{ saldo_disponible|stringformat:'.2f' }}">${{ saldo_disponible }}</span>
+                    </div>
+
+                    <form method="POST" action="{% url 'clientes:ejecutar_acciones_masivas' %}" id="form-pago-masivo">
+                        {% csrf_token %}
+                        <input type="hidden" name="accion" value="{{ accion }}">
+                        <input type="hidden" name="pedidos_ids" value="{{ pedidos_ids }}">
+
+                        <div class="row bg-light p-3 rounded-3 border mb-4">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold text-success">1. ¿Cuánto saldo a favor (Bono) usarás?</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">$</span>
+                                    <input type="number" name="monto_bono" id="monto_bono" class="form-control form-control-lg border-success" value="0" min="0" step="0.01">
+                                </div>
+                                <div class="form-text">Si no usarás bono, déjalo en 0.</div>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold text-danger">2. ¿De dónde saldrá el dinero restante?</label>
+                                {{ form.cuenta_origen }}
+                                {% if form.cuenta_origen.errors %}
+                                    <div class="text-danger small mt-1">{{ form.cuenta_origen.errors }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="alert alert-warning text-center shadow-sm">
+                            <h5 class="mb-1">Efectivo real a transferir / entregar:</h5>
+                            <h2 class="mb-0 text-danger" id="texto-faltante">$0</h2>
+                        </div>
+
+                        <div class="d-flex justify-content-between mt-4">
+                            <a href="{% url 'clientes:lista_pedidos' %}" class="btn btn-outline-secondary px-4">Cancelar</a>
+                            <button type="submit" class="btn btn-success btn-lg px-5 shadow">
+                                <i class="bi bi-check-circle"></i> Confirmar Pago Masivo
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const inputBono = document.getElementById('monto_bono');
+    const textoFaltante = document.getElementById('texto-faltante');
+
+    // Ahora JavaScript leerá 70000.00 en lugar de 70.000
+    const totalPagar = parseFloat(document.getElementById('total-a-pagar').getAttribute('data-total')) || 0;
+    const saldoDisponible = parseFloat(document.getElementById('saldo-disponible').getAttribute('data-saldo')) || 0;
+
+    if (saldoDisponible >= totalPagar && totalPagar > 0) {
+        inputBono.value = totalPagar;
+    } else if (saldoDisponible > 0) {
+        inputBono.value = saldoDisponible;
+    }
+
+    function actualizarCalculadora() {
+        let bonoUsar = parseFloat(inputBono.value) || 0;
+
+        // Limpiamos los saltos de alerta constantes
+        if (bonoUsar > saldoDisponible) {
+            alert("No puedes usar más saldo del que tienes disponible.");
+            bonoUsar = saldoDisponible;
+            inputBono.value = saldoDisponible;
+        }
+        if (bonoUsar > totalPagar) {
+            alert("El bono a usar no puede ser mayor al total de la deuda.");
+            bonoUsar = totalPagar;
+            inputBono.value = totalPagar;
+        }
+
+        let faltante = totalPagar - bonoUsar;
+
+        textoFaltante.textContent = "$" + faltante.toLocaleString('es-CO', { minimumFractionDigits: 0 });
+    }
+
+    inputBono.addEventListener('input', actualizarCalculadora);
+    actualizarCalculadora();
+});
+</script>
+{% endblock %}

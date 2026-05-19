@@ -1,5 +1,5 @@
 from django.shortcuts import render, redirect, get_object_or_404
-from django.db.models import Q
+from django.db.models import Q, Sum
 from django.contrib import messages
 from .models import Cliente, Pedido
 from .forms import ClienteForm, PedidoForm, ProveedorForm
@@ -604,7 +604,7 @@ def ejecutar_acciones_masivas(request):
             messages.error(request, "Error: Faltan datos para la acción masiva.")
             return redirect('clientes:lista_pedidos')
 
-        # Convertimos el texto "1,2,3" en una lista y buscamos esos pedidos en la base de datos
+        # Convertimos el texto "1,2,3" en una lista y buscamos esos pedidos
         lista_ids = pedidos_ids_str.split(',')
         pedidos = Pedido.objects.filter(id_pedido__in=lista_ids)
 
@@ -612,46 +612,154 @@ def ejecutar_acciones_masivas(request):
         # ACCIÓN DIRECTA: Marcar como Recogidos
         # ---------------------------------------------------------
         if accion == 'marcar_recogidos':
-            # Filtramos por seguridad para afectar solo a los que estén 'SEPARADO'
             pedidos_validos = pedidos.filter(estado='SEPARADO')
             cantidad = pedidos_validos.count()
-
-            # El comando .update() guarda todos los cambios en 1 segundo sin usar ciclos for
             pedidos_validos.update(estado='RECOGIDO')
 
-            messages.success(request, f"¡Éxito! {cantidad} pedidos fueron pasados al estado RECOGIDO.")
+            messages.success(request, f"¡Éxito! {cantidad} pedidos pasaron al estado RECOGIDO.")
             return redirect('clientes:lista_pedidos')
 
         # ---------------------------------------------------------
-        # ACCIÓN CON PASO INTERMEDIO: Asignar Proveedor
+        # ACCIÓN INTERMEDIA: Pago Masivo a Proveedores (Paso 1: Validar y Calcular)
         # ---------------------------------------------------------
-        elif accion == 'asignar_proveedor':
-            # Usamos nuestro truco maestro para encontrar el modelo Proveedor
-            Proveedor = Pedido._meta.get_field('proveedor_oficial').related_model
-
-            # Verificamos si ya eligieron al proveedor en la pantalla intermedia
-            nuevo_proveedor_id = request.POST.get('nuevo_proveedor_id')
-
-            if nuevo_proveedor_id:
-                # Si ya lo eligieron, hacemos la actualización masiva
-                proveedor_seleccionado = Proveedor.objects.get(id=nuevo_proveedor_id)
-                pedidos.update(proveedor_oficial=proveedor_seleccionado)
-
-                messages.success(request,
-                                 f"¡Éxito! Se asignó {proveedor_seleccionado.nombre} a {pedidos.count()} pedidos.")
-                return redirect('clientes:lista_pedidos')
-            else:
-                # Si no lo han elegido, los mandamos a la pantalla para que lo elijan
-                proveedores = Proveedor.objects.all().order_by('nombre')
-                return render(request, 'clientes/asignar_proveedor_masivo.html', {
-                    'pedidos_ids': pedidos_ids_str,
-                    'pedidos': pedidos,
-                    'proveedores': proveedores,
-                    'accion': accion
-                })
-
         elif accion == 'pagar_masivo':
-            messages.info(request, "El módulo de pago masivo será nuestro próximo reto.")
+            # 1. Validación de seguridad: Que no haya pedidos ya pagados
+            if pedidos.filter(pagado_al_proveedor=True).exists():
+                messages.error(request, "Error: Seleccionaste uno o más pedidos que YA están pagados.")
+                return redirect('clientes:lista_pedidos')
+
+            # 2. Validación de proveedor único y vacíos (A prueba de fallos)
+            proveedores_ids = list(set(pedidos.values_list('proveedor_oficial_id', flat=True)))
+
+            if None in proveedores_ids or not proveedores_ids:
+                messages.error(request,
+                               "Error: Seleccionaste uno o más pedidos que NO tienen un proveedor oficial asignado.")
+                return redirect('clientes:lista_pedidos')
+
+            if len(proveedores_ids) > 1:
+                messages.error(request,
+                               f"Error: Todos los pedidos deben ser del MISMO proveedor. (IDs detectados: {proveedores_ids})")
+                return redirect('clientes:lista_pedidos')
+
+            # Si pasamos las validaciones, sabemos que hay un solo proveedor válido
+            Proveedor = Pedido._meta.get_field('proveedor_oficial').related_model
+            proveedor_oficial = Proveedor.objects.get(id=proveedores_ids[0])
+
+            # 3. La Calculadora: Sumamos el precio_costo de todos los pedidos
+            total_calculado = pedidos.aggregate(total=Sum('precio_costo'))['total'] or 0
+
+            # Preparamos el formulario que ya usas para pagos individuales
+            form = PagarProveedorForm()
+
+            # Mandamos todo a la nueva pantalla de pago masivo
+            return render(request, 'clientes/pagar_proveedor_masivo.html', {
+                'pedidos_ids': pedidos_ids_str,
+                'pedidos': pedidos,
+                'proveedor': proveedor_oficial,
+                'total_a_pagar': total_calculado,
+                'total_a_pagar_raw': str(total_calculado),
+                'saldo_disponible': proveedor_oficial.saldo_a_favor,
+                'saldo_disponible_raw': str(proveedor_oficial.saldo_a_favor),
+                'form': form,
+                'accion': 'procesar_pago_masivo'
+            })
+
+        # ---------------------------------------------------------
+        # ACCIÓN FINAL: Procesar el pago real
+        # ---------------------------------------------------------
+        elif accion == 'procesar_pago_masivo':
+            from decimal import Decimal
+            from django.db import transaction
+            from django.apps import apps
+
+            # Traemos los modelos de Tesorería de forma segura
+            Movimiento = apps.get_model('tesoreria', 'Movimiento')
+            Cuenta = apps.get_model('tesoreria', 'Cuenta')
+
+            # 1. Recuperamos y limpiamos el monto del bono digitado
+            monto_bono_str = request.POST.get('monto_bono', '0').replace(',', '.')
+            monto_bono_usar = Decimal(monto_bono_str if monto_bono_str else '0')
+
+            # 2. Volvemos a buscar al proveedor y calculamos totales (por seguridad)
+            proveedores_ids = list(set(pedidos.values_list('proveedor_oficial_id', flat=True)))
+            if not proveedores_ids or len(proveedores_ids) > 1:
+                messages.error(request, "Error de seguridad: La lista de proveedores cambió durante el pago.")
+                return redirect('clientes:lista_pedidos')
+
+            Proveedor = Pedido._meta.get_field('proveedor_oficial').related_model
+            proveedor = Proveedor.objects.get(id=proveedores_ids[0])
+            saldo_disponible = proveedor.saldo_a_favor
+
+            total_a_pagar = pedidos.aggregate(total=Sum('precio_costo'))['total'] or Decimal('0')
+            monto_faltante = Decimal(total_a_pagar) - monto_bono_usar
+
+            # 3. Validaciones de seguridad matemáticas
+            if monto_bono_usar > saldo_disponible:
+                messages.error(request, "Error: Intentas usar más bono del que tienes disponible.")
+                return redirect('clientes:lista_pedidos')
+            if monto_bono_usar > total_a_pagar:
+                messages.error(request, "Error: El bono a usar es mayor al total a pagar.")
+                return redirect('clientes:lista_pedidos')
+
+            # 4. Validamos la cuenta si hay que pagar un excedente en efectivo
+            form = PagarProveedorForm(request.POST)
+            cuenta_origen = None
+
+            if monto_faltante > Decimal('0'):
+                if form.is_valid():
+                    cuenta_origen = form.cleaned_data['cuenta_origen']
+                    if cuenta_origen.saldo_actual < monto_faltante:
+                        messages.error(request,
+                                       f"Saldo insuficiente en {cuenta_origen.nombre} para cubrir los ${monto_faltante:,.0f} restantes.")
+                        return redirect('clientes:lista_pedidos')
+                else:
+                    messages.error(request, "Debes seleccionar una cuenta válida para pagar el excedente.")
+                    return redirect('clientes:lista_pedidos')
+
+            # 5. EL NÚCLEO CONTABLE (Transacción Atómica)
+            with transaction.atomic():
+                referencia_lote = f"LOTE-{pedidos.count()}P"
+
+                # A. Descontar el BONO del proveedor y de la Tesorería
+                if monto_bono_usar > Decimal('0'):
+                    proveedor.saldo_a_favor -= monto_bono_usar
+                    proveedor.save()
+
+                    cuenta_bonos = Cuenta.objects.filter(nombre__icontains="BONOS").first()
+                    if cuenta_bonos:
+                        cuenta_bonos.saldo_actual -= monto_bono_usar
+                        cuenta_bonos.save()
+
+                        Movimiento.objects.create(
+                            cuenta=cuenta_bonos,
+                            tipo='EGRESO',
+                            monto=monto_bono_usar,
+                            concepto=f"Bono usado en pago masivo - Prov: {proveedor.nombre} ({pedidos.count()} pedidos)",
+                            referencia_pedido=referencia_lote
+                        )
+
+                # B. Descontar el EFECTIVO real de la cuenta seleccionada
+                if monto_faltante > Decimal('0') and cuenta_origen:
+                    cuenta_origen.saldo_actual -= monto_faltante
+                    cuenta_origen.save()
+
+                    Movimiento.objects.create(
+                        cuenta=cuenta_origen,
+                        tipo='EGRESO',
+                        monto=monto_faltante,
+                        concepto=f"Pago masivo a {proveedor.nombre} ({pedidos.count()} ped.) (Bono: ${int(monto_bono_usar)} | Efectivo: ${int(monto_faltante)})",
+                        referencia_pedido=referencia_lote
+                    )
+
+                # C. Marcar TODOS los pedidos seleccionados como pagados
+                pedidos.update(pagado_al_proveedor=True)
+
+            messages.success(request,
+                             f"¡Pago exitoso! Se pagaron {pedidos.count()} pedidos de {proveedor.nombre}. Se usó ${int(monto_bono_usar):,} en bonos y ${int(monto_faltante):,} de tesorería.")
+            return redirect('clientes:lista_pedidos')
+
+        elif accion == 'cancelar_masivo':
+            messages.info(request, "Módulo de cancelación masiva en construcción.")
             return redirect('clientes:lista_pedidos')
 
         else:

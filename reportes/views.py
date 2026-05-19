@@ -4,6 +4,7 @@ from clientes.models import Pedido, Cliente
 from tesoreria.models import Cuenta, Gasto
 from cartera.models import Credito, Abono
 from django.utils.dateparse import parse_date
+from decimal import Decimal
 
 
 def dashboard_gerencial(request):
@@ -57,7 +58,7 @@ def dashboard_gerencial(request):
 
 
 def estado_cuenta_cliente(request):
-    """Genera un extracto detallado de movimientos de cartera por cliente."""
+    """Genera un extracto detallado de movimientos de cartera por cliente (Mantenemos tu lógica global)."""
     clientes = Cliente.objects.all().order_by('nombre')
 
     cliente_id = request.GET.get('cliente_id')
@@ -73,7 +74,6 @@ def estado_cuenta_cliente(request):
 
         # 1. Traer toda la historia: Créditos (Deudas) y Abonos (Pagos)
         creditos = Credito.objects.filter(cliente_id=cliente_id)
-        # Convertimos los abonos a una lista en memoria para poder cruzarlos más rápido
         lista_abonos = list(Abono.objects.filter(credito__cliente_id=cliente_id))
 
         historial = []
@@ -83,7 +83,6 @@ def estado_cuenta_cliente(request):
             else:
                 texto_detalle = f"Nueva deuda (Crédito #{c.id})"
 
-            # A. Registramos el cargo original
             historial.append({
                 'fecha': c.fecha_registro,
                 'detalle': texto_detalle,
@@ -93,10 +92,7 @@ def estado_cuenta_cliente(request):
             })
 
             # --- EL PARCHE INTELIGENTE ---
-            # Sumamos cuánto dinero real ha pagado el cliente a este crédito específico
             total_pagado_real = sum(a.monto for a in lista_abonos if a.credito_id == c.id)
-
-            # Calculamos si hubo un "descuento" o "anulación" (Deuda original - Pagos Reales - Lo que aún debe)
             ajuste = c.monto_total - total_pagado_real - c.saldo_pendiente
 
             if ajuste > 0:
@@ -107,9 +103,7 @@ def estado_cuenta_cliente(request):
                     'abono': ajuste,
                     'es_cargo': False
                 })
-            # -----------------------------
 
-        # B. Registramos los abonos físicos
         for a in lista_abonos:
             historial.append({
                 'fecha': a.fecha,
@@ -119,10 +113,8 @@ def estado_cuenta_cliente(request):
                 'es_cargo': False
             })
 
-        # 2. Ordenar todo de más antiguo a más nuevo
         historial.sort(key=lambda x: x['fecha'])
 
-        # 3. Calcular el saldo renglón por renglón
         saldo_acumulado = 0
         for item in historial:
             if item['es_cargo']:
@@ -131,7 +123,6 @@ def estado_cuenta_cliente(request):
                 saldo_acumulado -= item['abono']
             item['saldo_final'] = saldo_acumulado
 
-        # 4. Filtrar visualmente por las fechas seleccionadas
         for item in historial:
             incluir = True
             fecha_item = item['fecha'].date()
@@ -158,20 +149,25 @@ def estado_cuenta_cliente(request):
 
 
 def resumen_cartera(request):
+    """Calcula el resumen de cartera usando la misma fórmula global real del estado de cuenta."""
     clientes = Cliente.objects.all()
     lista_cartera = []
     total_general_cartera = 0
 
     for c in clientes:
-        # FÓRMULA IDÉNTICA AL DASHBOARD: Solo sumamos 'saldo_pendiente' de créditos 'ACTIVO'
-        saldo = Credito.objects.filter(cliente=c, estado='ACTIVO').aggregate(total=Sum('saldo_pendiente'))['total'] or 0
+        # FÓRMULA GLOBAL REAL: Total de lo comprado (monto_total) menos Total de lo pagado (Abonos)
+        total_creditos = Credito.objects.filter(cliente=c).aggregate(total=Sum('monto_total'))['total'] or 0
+        total_abonos = Abono.objects.filter(credito__cliente=c).aggregate(total=Sum('monto'))['total'] or 0
 
-        # Si el saldo no es cero (sea positivo a favor tuyo o negativo a favor del cliente)
+        # El saldo neto real del cliente bajo la lógica PEPS global
+        saldo = total_creditos - total_abonos
+
+        # Si el saldo no es cero (tiene deuda o saldo a favor)
         if saldo != 0:
             lista_cartera.append({
                 'id': c.id,
                 'nombre': c.nombre,
-                'telefono': c.whatsapp,  # Recordando que tu campo se llama whatsapp
+                'telefono': c.whatsapp,
                 'saldo': saldo
             })
             total_general_cartera += saldo
