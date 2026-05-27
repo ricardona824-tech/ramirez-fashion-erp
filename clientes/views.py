@@ -100,16 +100,24 @@ def crear_pedido(request):
 
 
 def gestion_separacion(request):
-    """Vista para gestionar pedidos con proveedores (HU 03)."""
-    # 1. Obtener lista de proveedores únicos que tienen pedidos pendientes
-    proveedores = Pedido.objects.filter(estado='PENDIENTE').values_list('proveedor', flat=True).distinct()
+    """Vista para gestionar pedidos con proveedores (HU 03) usando Proveedor Oficial."""
+    # 1. Obtener el modelo de Proveedor Oficial de forma dinámica a través de la relación de Pedido
+    Proveedor = Pedido._meta.get_field('proveedor_oficial').related_model
+
+    # Traemos solo los proveedores oficiales que tienen pedidos PENDIENTES actualmente
+    proveedores_ids = Pedido.objects.filter(estado='PENDIENTE').exclude(proveedor_oficial=None).values_list(
+        'proveedor_oficial_id', flat=True).distinct()
+    proveedores = Proveedor.objects.filter(id__in=proveedores_ids).order_by('nombre')
 
     # 2. Filtrar pedidos si se seleccionó un proveedor
     proveedor_seleccionado = request.GET.get('proveedor', '')
-    pedidos = Pedido.objects.filter(estado='PENDIENTE')  # Solo mostramos los pendientes
+
+    # IMPORTANTE: Usamos select_related para traer la información del proveedor oficial en una sola consulta limpia
+    pedidos = Pedido.objects.filter(estado='PENDIENTE').select_related('proveedor_oficial', 'cliente')
 
     if proveedor_seleccionado:
-        pedidos = pedidos.filter(proveedor=proveedor_seleccionado)
+        # Filtramos usando el ID del proveedor oficial seleccionado
+        pedidos = pedidos.filter(proveedor_oficial_id=proveedor_seleccionado)
 
     # 3. Procesar las acciones masivas (POST)
     if request.method == 'POST':

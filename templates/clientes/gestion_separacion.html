@@ -9,7 +9,9 @@
         <select name="proveedor" id="proveedor" class="form-select w-auto" onchange="this.form.submit()">
             <option value="">Todos los proveedores</option>
             {% for prov in proveedores %}
-                <option value="{{ prov }}" {% if prov == proveedor_seleccionado %}selected{% endif %}>{{ prov }}</option>
+                <option value="{{ prov.id }}" {% if proveedor_seleccionado and proveedor_seleccionado|add:"0" == prov.id %}selected{% endif %}>
+                    {{ prov.nombre }}
+                </option>
             {% endfor %}
         </select>
     </form>
