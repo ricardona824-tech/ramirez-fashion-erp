@@ -48,7 +48,15 @@
                         <td>{{ pedido.cliente.nombre }}</td>
                         <td>{{ pedido.producto }}</td>
                         <td>{{ pedido.talla }} / {{ pedido.color }}</td>
-                        <td>{{ pedido.proveedor }}</td>
+
+                        <td>
+                            {% if pedido.proveedor_oficial %}
+                                <span class="fw-bold text-primary">{{ pedido.proveedor_oficial.nombre }}</span>
+                            {% else %}
+                                <span class="text-muted fst-italic">{{ pedido.proveedor|default:"Sin proveedor" }} (Antiguo)</span>
+                            {% endif %}
+                        </td>
+
                     </tr>
                     {% empty %}
                     <tr>
