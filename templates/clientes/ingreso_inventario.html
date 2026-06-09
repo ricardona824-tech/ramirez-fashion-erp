@@ -1,23 +1,26 @@
 {% extends 'base.html' %}
+
 {% block content %}
 <div class="container mt-4">
-    <div class="row justify-content-center">
-        <div class="col-md-8">
-            <div class="card shadow-sm">
-                <div class="card-header bg-dark text-white">
-                    <h4 class="mb-0">Registrar Nuevo Pedido</h4>
+    <div class="card shadow">
+        <div class="card-header bg-primary text-white">
+            <h3 class="mb-0">📦 Ingresar Mercancía al Inventario</h3>
+        </div>
+        <div class="card-body">
+            <p class="text-muted">Usa este formulario para registrar mercancía comprada para stock. Se crearán unidades individuales automáticamente.</p>
+
+            <form method="POST" action="">
+                {% csrf_token %}
+
+                {{ form.as_p }}
+
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-success">
+                        Guardar Unidades en Inventario
+                    </button>
+                    <a href="{% url 'clientes:mi_inventario' %}" class="btn btn-secondary">Cancelar</a>
                 </div>
-                <div class="card-body">
-                    <form method="post">
-                        {% csrf_token %}
-                        {{ form.as_p }}
-                        <div class="d-grid gap-2 mt-4">
-                            <button type="submit" class="btn btn-primary btn-lg">Guardar Pedido</button>
-                            <a href="{% url 'clientes:lista_pedidos' %}" class="btn btn-outline-secondary btn-lg">Cancelar</a>
-                        </div>
-                    </form>
-                </div>
-            </div>
+            </form>
         </div>
     </div>
 </div>
@@ -28,7 +31,7 @@
         const inputsDinero = document.querySelectorAll('.formato-dinero');
 
         inputsDinero.forEach(input => {
-            // (Mejora) Si el campo ya tiene un valor al cargar la página, lo formateamos
+            // Si el campo ya tiene un valor al cargar la página, lo formateamos
             if (input.value) {
                 let valorPuroInicial = input.value.replace(/\D/g, "");
                 if (valorPuroInicial) {
@@ -36,9 +39,9 @@
                 }
             }
 
-            // 2. Cada vez que el usuario teclea algo...
+            // Cada vez que el usuario teclea algo...
             input.addEventListener('input', function(e) {
-                // Borramos todo lo que no sea un número (letras, puntos viejos, etc.)
+                // Borramos todo lo que no sea un número
                 let valorPuro = this.value.replace(/\D/g, "");
 
                 if (valorPuro) {
@@ -50,7 +53,7 @@
             });
         });
 
-        // 3. El truco final: Antes de enviar el formulario, limpiamos los puntos
+        // El truco final: Antes de enviar el formulario, limpiamos los puntos
         const form = document.querySelector('form');
         if(form) {
             form.addEventListener('submit', function() {

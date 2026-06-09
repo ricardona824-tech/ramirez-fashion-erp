@@ -26,8 +26,8 @@ class PedidoForm(forms.ModelForm):
             'talla': forms.TextInput(attrs={'class': 'form-control form-control-lg', 'placeholder': 'Ej. M'}),
             'color': forms.TextInput(attrs={'class': 'form-control form-control-lg', 'placeholder': 'Ej. Negro'}),
             'proveedor_oficial': forms.Select(attrs={'class': 'form-select form-select-lg'}),
-            'precio_costo': forms.NumberInput(attrs={'class': 'form-control form-control-lg', 'placeholder': 'Ej. 35000'}),
-            'precio_venta': forms.NumberInput(attrs={'class': 'form-control form-control-lg', 'placeholder': 'Ej. 70000'}),
+            'precio_costo': forms.TextInput(attrs={'class': 'form-control formato-dinero', 'placeholder': 'Ej: 50.000'}),
+            'precio_venta': forms.TextInput(attrs={'class': 'form-control formato-dinero', 'placeholder': 'Ej: 80.000'}),
         }
 
     def __init__(self, *args, **kwargs):
@@ -44,7 +44,8 @@ class PagarProveedorForm(forms.Form):
     cuenta_origen = forms.ModelChoiceField(
         queryset=Cuenta.objects.all(),
         widget=forms.Select(attrs={'class': 'form-select form-select-lg'}),
-        label="Cuenta origen del pago"
+        label="Cuenta origen del pago",
+        required = False
     )
 
 
@@ -121,3 +122,75 @@ class ProveedorForm(forms.ModelForm):
             'telefono': forms.TextInput(attrs={'class': 'form-control form-control-lg', 'placeholder': 'Ej. 3001234567'}),
             'whatsapp': forms.TextInput(attrs={'class': 'form-control form-control-lg', 'placeholder': 'Ej. 573001234567'}),
         }
+
+
+class IngresoInventarioForm(forms.ModelForm):
+    # Este es el campo "mágico" que usamos solo en la pantalla
+    cantidad = forms.IntegerField(
+        min_value=1,
+        initial=1,
+        label="Cantidad de unidades",
+        help_text="¿Cuántas unidades idénticas vas a ingresar?"
+    )
+
+    class Meta:
+        model = Pedido
+        # Solo pedimos los datos de la prenda y el proveedor. Omitimos al cliente.
+        fields = [
+            'cantidad', 'producto', 'talla', 'color',
+            'proveedor_oficial',
+            'precio_costo', 'precio_venta'
+        ]
+        labels = {
+            'precio_costo': 'Precio Costo UNITARIO (COP)',
+            'precio_venta': 'Precio Venta UNITARIO (COP)',
+        }
+        widgets = {
+            'precio_costo': forms.TextInput(
+                attrs={'class': 'form-control formato-dinero', 'placeholder': 'Ej: 50.000'}),
+            'precio_venta': forms.TextInput(
+                attrs={'class': 'form-control formato-dinero', 'placeholder': 'Ej: 80.000'}),
+        }
+
+
+class VenderInventarioForm(forms.Form):
+    cliente = forms.ModelChoiceField(
+        queryset=Cliente.objects.all(),
+        label="¿A qué cliente se lo vendes?",
+        empty_label="--- Selecciona un cliente ---",
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+
+    # Campo nuevo para elegir el producto/lote disponible
+    producto_lote = forms.ChoiceField(
+        label="¿Qué mercancía vas a vender?",
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+
+    cantidad = forms.IntegerField(
+        min_value=1,
+        initial=1,
+        label="¿Cuántas unidades se lleva?",
+        widget=forms.NumberInput(attrs={'class': 'form-control'})
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from .models import Pedido
+        from django.db.models import Count
+
+        # Buscamos solo los productos que están en bodega (sin cliente) Y YA PAGADOS
+        lotes_disponibles = Pedido.objects.filter(
+            cliente__isnull=True,
+            pagado_al_proveedor=True
+        ).values('producto', 'talla', 'color', 'proveedor').annotate(cant=Count('id_pedido'))
+
+        # Armamos las opciones del desplegable
+        opciones = [('', '--- Selecciona la mercancía disponible ---')]
+        for item in lotes_disponibles:
+            # Creamos una "llave oculta" separada por tres barras |||
+            llave = f"{item['producto']}|||{item['talla']}|||{item['color']}|||{item['proveedor']}"
+            texto_visible = f"{item['producto']} (Talla: {item['talla']} / Color: {item['color']}) - Disp: {item['cant']} und"
+            opciones.append((llave, texto_visible))
+
+        self.fields['producto_lote'].choices = opciones

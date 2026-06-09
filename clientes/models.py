@@ -42,6 +42,7 @@ class Proveedor(models.Model):
 class Pedido(models.Model):
     """
     Modelo para el Registro de Pedido y Trazabilidad (HU 02 y HU 03).
+    Ajustado para soportar Inventario Propio (Pedidos sin cliente inicial).
     """
     # Estados del pedido definidos en el Backlog
     ESTADOS_PEDIDO = [
@@ -49,6 +50,7 @@ class Pedido(models.Model):
         ('SEPARADO', 'Separado/Confirmado'),
         ('AGOTADO', 'Agotado'),
         ('RECOGIDO', 'Recogido'),
+        ('EN_INVENTARIO', 'En Inventario (Bodega)'),  # <--- ¡NUEVO ESTADO!
         ('ENTREGADO', 'Entregado'),
         ('DEV_RECOGER', 'Devolución: Recoger al cliente'),
         ('DEV_PROVEEDOR', 'Devolución: Cambiar en proveedor'),
@@ -60,25 +62,38 @@ class Pedido(models.Model):
     id_pedido = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     # Relación con el Cliente (FK)
-    cliente = models.ForeignKey(Cliente, on_delete=models.PROTECT, related_name='pedidos')
+    # Le agregamos null=True, blank=True para permitir productos "Huérfanos" (En inventario)
+    cliente = models.ForeignKey(
+        'Cliente',  # Si Cliente está en este mismo archivo, quítale las comillas.
+        on_delete=models.PROTECT,
+        related_name='pedidos',
+        null=True,   # <--- LA MAGIA EMPIEZA AQUÍ
+        blank=True   # <--- LA MAGIA EMPIEZA AQUÍ
+    )
 
     # Detalles del Producto
     producto = models.CharField(max_length=255, verbose_name="Producto")
     talla = models.CharField(max_length=50, verbose_name="Talla")
     color = models.CharField(max_length=50, verbose_name="Color")
     proveedor = models.CharField(max_length=255, verbose_name="Proveedor")
-    proveedor_oficial = models.ForeignKey('Proveedor', on_delete=models.SET_NULL, null=True, blank=True,
-                                          related_name='pedidos')
+    proveedor_oficial = models.ForeignKey(
+        'Proveedor',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='pedidos'
+    )
 
     # Finanzas en Pesos Colombianos (COP)
     precio_costo = models.DecimalField(max_digits=12, decimal_places=2, verbose_name="Precio Costo (COP)")
     precio_venta = models.DecimalField(max_digits=12, decimal_places=2, verbose_name="Precio Venta (COP)")
+    pagado_al_proveedor = models.BooleanField(default=False, verbose_name="¿Pagado al Proveedor?") # <--- Lo movimos aquí arriba
 
     # Trazabilidad
     estado = models.CharField(
         max_length=20,
         choices=ESTADOS_PEDIDO,
-        default='PENDIENTE',  # Estado inicial automático
+        default='PENDIENTE',
         verbose_name="Estado del Pedido"
     )
     fecha_registro = models.DateTimeField(auto_now_add=True)
@@ -90,7 +105,6 @@ class Pedido(models.Model):
         ordering = ['-fecha_registro']
 
     def __str__(self):
-        return f"Pedido {self.id_pedido} - {self.producto} ({self.estado})"
-
-
-    pagado_al_proveedor = models.BooleanField(default=False, verbose_name="¿Pagado al Proveedor?")
+        # Pequeño ajuste para que no falle si el cliente está vacío
+        cliente_nombre = self.cliente.nombre if self.cliente else "INVENTARIO"
+        return f"Pedido {self.id_pedido} - {self.producto} ({cliente_nombre})"

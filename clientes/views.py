@@ -1,8 +1,8 @@
 from django.shortcuts import render, redirect, get_object_or_404
-from django.db.models import Q, Sum
+from django.db.models import Q, Sum, Count
 from django.contrib import messages
 from .models import Cliente, Pedido
-from .forms import ClienteForm, PedidoForm, ProveedorForm
+from .forms import ClienteForm, PedidoForm, ProveedorForm, IngresoInventarioForm, VenderInventarioForm
 from django.db import transaction
 from tesoreria.models import Cuenta, Movimiento
 from cartera.models import Credito
@@ -56,7 +56,7 @@ def editar_cliente(request, pk):
 
 def lista_pedidos(request):
     # BONUS DE VELOCIDAD: Agregamos 'proveedor_oficial' aquí para que Django no haga 100 consultas a la base de datos
-    pedidos = Pedido.objects.select_related('cliente', 'proveedor_oficial').order_by('-fecha_registro')
+    pedidos = Pedido.objects.select_related('cliente', 'proveedor_oficial').filter(cliente__isnull=False).order_by('-fecha_registro')
 
     query = request.GET.get('q', '')
 
@@ -172,7 +172,16 @@ def registrar_pago_proveedor(request, id_pedido):
             # Si hay que pagar algo con dinero real...
             if monto_faltante > Decimal('0'):
                 if form.is_valid():
-                    cuenta = form.cleaned_data['cuenta_origen']
+                    # Usamos .get() para que no estalle si viene vacía
+                    cuenta = form.cleaned_data.get('cuenta_origen')
+
+                    # --- NUEVA VALIDACIÓN: Si falta dinero y no seleccionó cuenta ---
+                    if not cuenta:
+                        messages.error(request,
+                                       "El bono no cubre el total. Debes seleccionar una cuenta para pagar el excedente.")
+                        return render(request, 'clientes/pagar_proveedor.html',
+                                      {'form': form, 'pedido': pedido, 'saldo_disponible': saldo_disponible})
+
                     if cuenta.saldo_actual < monto_faltante:
                         messages.error(request, f"Saldo insuficiente en {cuenta.nombre} para cubrir el excedente.")
                         return render(request, 'clientes/pagar_proveedor.html',
@@ -775,3 +784,236 @@ def ejecutar_acciones_masivas(request):
             return redirect('clientes:lista_pedidos')
 
     return redirect('clientes:lista_pedidos')
+
+
+def ingresar_inventario(request):
+    if request.method == 'POST':
+        form = IngresoInventarioForm(request.POST)
+        if form.is_valid():
+            # 1. Atrapamos la cantidad que escribiste (ej. 50)
+            cantidad = form.cleaned_data.get('cantidad')
+
+            # 2. Sacamos los datos de la prenda, pero NO los guardamos todavía (commit=False)
+            prenda_base = form.save(commit=False)
+
+            # 3. Preparamos una lista vacía
+            pedidos_a_crear = []
+
+            # 4. El Clonador: Repetimos el proceso 'cantidad' de veces
+            for _ in range(cantidad):
+                pedidos_a_crear.append(
+                    Pedido(
+                        producto=prenda_base.producto,
+                        talla=prenda_base.talla,
+                        color=prenda_base.color,
+                        proveedor=str(prenda_base.proveedor_oficial) if prenda_base.proveedor_oficial else "Inventario",
+                        proveedor_oficial=prenda_base.proveedor_oficial,
+                        precio_costo=prenda_base.precio_costo,
+                        precio_venta=prenda_base.precio_venta,
+                        estado='PENDIENTE',  # Entra a la ruta normal de separación
+                        cliente=None  # ¡Sin cliente! Es para inventario
+                    )
+                )
+
+            # 5. Guardamos todos de un solo golpe en la base de datos (súper eficiente)
+            Pedido.objects.bulk_create(pedidos_a_crear)
+
+            # Mensaje de éxito
+            messages.success(request,
+                             f'¡Éxito! Se crearon {cantidad} unidades de {prenda_base.producto} para el inventario.')
+            return redirect('home')  # <--- Cambia 'inicio' por la URL a la que quieras ir después de guardar
+
+    else:
+        form = IngresoInventarioForm()
+
+    # Renderizamos la plantilla (html)
+    return render(request, 'clientes/ingreso_inventario.html', {'form': form})
+    # <--- OJO: cambia 'tu_app/ingreso_inventario.html' por la ruta real de tu archivo HTML
+
+
+def mi_inventario(request):
+    # 1. Filtramos los que son de inventario (sin cliente) y no están cancelados ni entregados
+    inventario_crudo = Pedido.objects.filter(
+        cliente__isnull=True
+    ).exclude(estado__in=['ENTREGADO', 'CANCELADO'])
+
+    # 2. Agrupamos AHORA teniendo en cuenta si están pagados o no
+    inventario_agrupado = inventario_crudo.values(
+        'producto', 'talla', 'color', 'proveedor', 'precio_venta', 'precio_costo', 'pagado_al_proveedor'
+    ).annotate(
+        cantidad_disponible=Count('id_pedido')
+    ).order_by('pagado_al_proveedor', '-cantidad_disponible')
+
+    return render(request, 'clientes/mi_inventario.html', {
+        'inventario': inventario_agrupado
+    })
+
+
+def vender_inventario(request):
+    if request.method == 'POST':
+        form = VenderInventarioForm(request.POST)
+        if form.is_valid():
+            cliente_seleccionado = form.cleaned_data['cliente']
+            cantidad_a_vender = form.cleaned_data['cantidad']
+            producto_lote_str = form.cleaned_data['producto_lote']
+
+            # Desarmamos la llave para saber qué producto exacto eligió
+            prod, talla, color, prov = producto_lote_str.split('|||')
+
+            # Buscamos las unidades físicas en la base de datos
+            unidades_disponibles = Pedido.objects.filter(
+                cliente__isnull=True,
+                pagado_al_proveedor=True,
+                producto=prod, talla=talla, color=color, proveedor=prov
+            )
+            cantidad_disponible = unidades_disponibles.count()
+
+            if cantidad_a_vender > cantidad_disponible:
+                messages.error(request, f"Error: Solo tienes {cantidad_disponible} unidades disponibles de este artículo.")
+            else:
+                # Transacción contable segura
+                with transaction.atomic():
+                    unidades_a_entregar = unidades_disponibles[:cantidad_a_vender]
+
+                    for unidad in unidades_a_entregar:
+                        unidad.cliente = cliente_seleccionado
+                        unidad.estado = 'ENTREGADO'
+                        unidad.save()
+
+                        # Generamos su deuda en Cartera
+                        Credito.objects.create(
+                            cliente=cliente_seleccionado,
+                            pedido=unidad,
+                            monto_total=unidad.precio_venta,
+                            saldo_pendiente=unidad.precio_venta,
+                            estado='ACTIVO'
+                        )
+
+                messages.success(request, f"¡Venta registrada! Se asignaron {cantidad_a_vender} unidades de '{prod}' a {cliente_seleccionado.nombre}.")
+                return redirect('clientes:mi_inventario')
+    else:
+        form = VenderInventarioForm()
+
+    return render(request, 'clientes/vender_inventario.html', {'form': form})
+
+
+def pagar_lote_inventario(request):
+    producto = request.GET.get('producto')
+    talla = request.GET.get('talla')
+    color = request.GET.get('color')
+    proveedor_txt = request.GET.get('proveedor')
+
+    # 1. Traemos todo el lote pendiente
+    lote_pedidos = Pedido.objects.filter(
+        cliente__isnull=True,
+        pagado_al_proveedor=False,
+        producto=producto, talla=talla, color=color, proveedor=proveedor_txt
+    )
+    cantidad = lote_pedidos.count()
+
+    if cantidad == 0:
+        messages.error(request, "No se encontró el lote o ya fue pagado.")
+        return redirect('clientes:mi_inventario')
+
+    pedido_base = lote_pedidos.first()
+    proveedor = pedido_base.proveedor_oficial
+
+    # 2. Matemáticas del Lote Completo
+    costo_unitario = pedido_base.precio_costo
+    costo_total_lote = costo_unitario * cantidad
+    saldo_disponible = proveedor.saldo_a_favor if proveedor else Decimal('0')
+    pedido_base.precio_costo = costo_total_lote
+
+    if request.method == 'POST':
+        form = PagarProveedorForm(request.POST)
+        monto_bono_str = request.POST.get('monto_bono', '0') or '0'
+        monto_bono_usar = Decimal(monto_bono_str)
+
+        monto_faltante = costo_total_lote - monto_bono_usar
+
+        if monto_bono_usar > saldo_disponible:
+            messages.error(request, "No puedes usar más bono del que tienes disponible.")
+        elif monto_bono_usar > costo_total_lote:
+            messages.error(request, "El bono no puede ser mayor al costo total del lote.")
+        else:
+            if monto_faltante > Decimal('0'):
+                # Pago mixto (Bono + Efectivo)
+                if form.is_valid():
+                    # Usamos .get() para evitar errores si no seleccionó nada
+                    cuenta = form.cleaned_data.get('cuenta_origen')
+
+                    # --- NUEVA VALIDACIÓN: Si falta dinero y no seleccionó cuenta ---
+                    if not cuenta:
+                        messages.error(request, "El bono no cubre el total del lote. Debes seleccionar una cuenta para pagar el excedente.")
+                        return render(request, 'clientes/pagar_proveedor.html',
+                                      {'form': form, 'pedido': pedido_base, 'saldo_disponible': saldo_disponible,
+                                       'es_lote': True, 'cantidad': cantidad, 'costo_total': costo_total_lote})
+
+                    if cuenta.saldo_actual < monto_faltante:
+                        messages.error(request, f"Saldo insuficiente en {cuenta.nombre}.")
+                        return render(request, 'clientes/pagar_proveedor.html',
+                                      {'form': form, 'pedido': pedido_base, 'saldo_disponible': saldo_disponible,
+                                       'es_lote': True, 'cantidad': cantidad, 'costo_total': costo_total_lote})
+
+                    with transaction.atomic():
+                        # A. Bonos
+                        if monto_bono_usar > Decimal('0'):
+                            proveedor.saldo_a_favor -= monto_bono_usar
+                            proveedor.save()
+                            # (Aquí va tu lógica de Cuenta Bonos igual que en tu código original)
+                            Cuenta_mod = Movimiento._meta.get_field('cuenta').related_model
+                            cuenta_bonos = Cuenta_mod.objects.filter(nombre__icontains="BONOS").first()
+                            if cuenta_bonos:
+                                cuenta_bonos.saldo_actual -= monto_bono_usar
+                                cuenta_bonos.save()
+                                Movimiento.objects.create(cuenta=cuenta_bonos, tipo='EGRESO', monto=monto_bono_usar,
+                                                          concepto=f"Bono Lote Inventario: {cantidad}x {producto}")
+
+                        # B. Efectivo
+                        cuenta.saldo_actual -= monto_faltante
+                        cuenta.save()
+                        Movimiento.objects.create(cuenta=cuenta, tipo='EGRESO', monto=monto_faltante,
+                                                  concepto=f"Pago Lote Inventario: {cantidad}x {producto} a {proveedor.nombre}")
+
+                        # C. Actualizar todo el lote
+                        for p in lote_pedidos:
+                            p.pagado_al_proveedor = True
+                            p.estado = 'EN_INVENTARIO'
+                            p.save()
+
+                    messages.success(request, f"¡Lote pagado! Ingresaron {cantidad} unds al inventario.")
+                    return redirect('clientes:mi_inventario')
+            else:
+                # Pago 100% con bono
+                with transaction.atomic():
+                    proveedor.saldo_a_favor -= monto_bono_usar
+                    proveedor.save()
+                    # (Aquí va tu lógica de Cuenta Bonos)
+                    Cuenta_mod = Movimiento._meta.get_field('cuenta').related_model
+                    cuenta_bonos = Cuenta_mod.objects.filter(nombre__icontains="BONOS").first()
+                    if cuenta_bonos:
+                        cuenta_bonos.saldo_actual -= monto_bono_usar
+                        cuenta_bonos.save()
+                        Movimiento.objects.create(cuenta=cuenta_bonos, tipo='EGRESO', monto=monto_bono_usar,
+                                                  concepto=f"Bono Lote Inventario: {cantidad}x {producto}")
+
+                    for p in lote_pedidos:
+                        p.pagado_al_proveedor = True
+                        p.estado = 'EN_INVENTARIO'
+                        p.save()
+
+                messages.success(request, "¡Lote pagado 100% con bono!")
+                return redirect('clientes:mi_inventario')
+
+    else:
+        form = PagarProveedorForm()
+
+    # Reutilizamos tu misma plantilla de pago a proveedores
+    return render(request, 'clientes/pagar_proveedor.html', {
+        'form': form,
+        'pedido': pedido_base,  # Mandamos la base para que el template no estalle
+        'saldo_disponible': saldo_disponible,
+        'es_lote': True,  # Variable para que el template sepa que es múltiple
+        'cantidad': cantidad,
+        'costo_total': costo_total_lote
+    })

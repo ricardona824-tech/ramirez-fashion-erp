@@ -22,7 +22,11 @@ urlpatterns = [
     path('pedidos/pagar-proveedor/<uuid:id_pedido>/', views.registrar_pago_proveedor, name='registrar_pago_proveedor'),
     path('pedidos/eliminar/<uuid:pk>/', views.eliminar_pedido, name='eliminar_pedido'),
     path('pedidos/bono-proveedor/<uuid:pk>/', views.registrar_bono_proveedor, name='registrar_bono_proveedor'),
+    path('inventario/ingresar/', views.ingresar_inventario, name='ingresar_inventario'),
     path('proveedores/', views.lista_proveedores, name='lista_proveedores'),
     path('proveedores/nuevo/', views.crear_proveedor, name='crear_proveedor'),
     path('herramientas/unificar-proveedores/', views.unificar_proveedores, name='unificar_proveedores'),
+    path('inventario/', views.mi_inventario, name='mi_inventario'),
+    path('inventario/vender/', views.vender_inventario, name='vender_inventario'),
+    path('inventario/pagar/', views.pagar_lote_inventario, name='pagar_lote_inventario'),
 ]
