@@ -27,25 +27,25 @@
 
 <script>
     document.addEventListener("DOMContentLoaded", function() {
-        // 1. Buscamos todos los campos que tengan la clase 'formato-dinero'
         const inputsDinero = document.querySelectorAll('.formato-dinero');
 
         inputsDinero.forEach(input => {
-            // Si el campo ya tiene un valor al cargar la página, lo formateamos
+            // 1. CARGA INICIAL: Cortar los decimales si vienen de la base de datos
             if (input.value) {
-                let valorPuroInicial = input.value.replace(/\D/g, "");
+                // Partimos el texto en el punto (o coma) y nos quedamos solo con la parte entera
+                let parteEntera = input.value.split('.')[0].split(',')[0];
+                let valorPuroInicial = parteEntera.replace(/\D/g, "");
+
                 if (valorPuroInicial) {
                     input.value = new Intl.NumberFormat('es-CO').format(valorPuroInicial);
                 }
             }
 
-            // Cada vez que el usuario teclea algo...
+            // 2. MIENTRAS EL USUARIO ESCRIBE
             input.addEventListener('input', function(e) {
-                // Borramos todo lo que no sea un número
                 let valorPuro = this.value.replace(/\D/g, "");
 
                 if (valorPuro) {
-                    // Formateamos con puntos de miles (estilo Colombia)
                     this.value = new Intl.NumberFormat('es-CO').format(valorPuro);
                 } else {
                     this.value = "";
@@ -53,12 +53,11 @@
             });
         });
 
-        // El truco final: Antes de enviar el formulario, limpiamos los puntos
+        // 3. ANTES DE GUARDAR: Limpiar para Django
         const form = document.querySelector('form');
         if(form) {
             form.addEventListener('submit', function() {
                 inputsDinero.forEach(input => {
-                    // Quitamos todos los puntos para que Django guarde el número puro sin errores
                     input.value = input.value.replace(/\./g, '').replace(/,/g, '');
                 });
             });

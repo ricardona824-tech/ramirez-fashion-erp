@@ -37,7 +37,7 @@
                                 <td><span class="badge bg-secondary">{{ item.talla }}</span></td>
                                 <td>{{ item.color }}</td>
                                 <td>{{ item.proveedor }}</td>
-                                <td class="text-end">$ {{ item.precio_venta }}</td>
+                                <td class="text-end">$ {{ item.precio_venta|floatformat:0 }}</td>
                                 <td class="text-center">
                                     {% if item.pagado_al_proveedor %}
                                         <span class="badge bg-success fs-6">{{ item.cantidad_disponible }} und (Listo)</span>

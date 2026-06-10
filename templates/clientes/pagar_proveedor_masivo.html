@@ -25,7 +25,7 @@
                                 <tr>
                                     <td>{{ pedido.producto }} ({{ pedido.talla }})</td>
                                     <td>{{ pedido.cliente.nombre }}</td>
-                                    <td class="text-end">${{ pedido.precio_costo }}</td>
+                                    <td class="text-end">${{ pedido.precio_costo|floatformat:0 }}</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -43,7 +43,7 @@
                             <i class="bi bi-wallet2 fs-4 me-2 text-primary"></i>
                             <strong>Saldo a Favor (Bonos) de {{ proveedor.nombre }}:</strong>
                         </div>
-                        <span class="fs-4 fw-bold text-primary" id="saldo-disponible" data-saldo="{{ saldo_disponible|stringformat:'.2f' }}">${{ saldo_disponible }}</span>
+                        <span class="fs-4 fw-bold text-primary" id="saldo-disponible" data-saldo="{{ saldo_disponible|stringformat:'.2f' }}">${{ saldo_disponible|floatformat:0 }}</span>
                     </div>
 
                     <form method="POST" action="{% url 'clientes:ejecutar_acciones_masivas' %}" id="form-pago-masivo">

@@ -61,5 +61,43 @@
             });
         }
     });
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const inputsDinero = document.querySelectorAll('.formato-dinero');
+
+        inputsDinero.forEach(input => {
+            // 1. CARGA INICIAL: Cortar los decimales si vienen de la base de datos
+            if (input.value) {
+                // Partimos el texto en el punto (o coma) y nos quedamos solo con la parte entera
+                let parteEntera = input.value.split('.')[0].split(',')[0];
+                let valorPuroInicial = parteEntera.replace(/\D/g, "");
+
+                if (valorPuroInicial) {
+                    input.value = new Intl.NumberFormat('es-CO').format(valorPuroInicial);
+                }
+            }
+
+            // 2. MIENTRAS EL USUARIO ESCRIBE
+            input.addEventListener('input', function(e) {
+                let valorPuro = this.value.replace(/\D/g, "");
+
+                if (valorPuro) {
+                    this.value = new Intl.NumberFormat('es-CO').format(valorPuro);
+                } else {
+                    this.value = "";
+                }
+            });
+        });
+
+        // 3. ANTES DE GUARDAR: Limpiar para Django
+        const form = document.querySelector('form');
+        if(form) {
+            form.addEventListener('submit', function() {
+                inputsDinero.forEach(input => {
+                    input.value = input.value.replace(/\./g, '').replace(/,/g, '');
+                });
+            });
+        }
+    });
 </script>
 {% endblock %}

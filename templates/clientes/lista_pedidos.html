@@ -90,7 +90,7 @@
                             <span class="text-muted italic">{{ pedido.proveedor }}</span>
                         {% endif %}
                     </td>
-                    <td>${{ pedido.precio_venta }}</td>
+                    <td>${{ pedido.precio_venta|floatformat:0 }}</td>
                     <td>
                         <div class="d-flex align-items-center gap-2 mb-2">
                             <span class="badge bg-secondary">{{ pedido.get_estado_display }}</span>

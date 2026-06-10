@@ -73,7 +73,7 @@
 
 <script>
 function calcularExcedente() {
-    const costoTotal = {{ pedido.precio_costo }};
+    const costoTotal = {{ pedido.precio_costo|floatformat:0 }};
     const inputBono = document.getElementById('monto_bono');
     const displayTotal = document.getElementById('totalPagar');
     const saldoDisponible = {{ saldo_disponible }};
