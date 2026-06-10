@@ -24,77 +24,40 @@
 
 <script>
     document.addEventListener("DOMContentLoaded", function() {
-        // 1. Buscamos todos los campos que tengan la clase 'formato-dinero'
         const inputsDinero = document.querySelectorAll('.formato-dinero');
 
-        inputsDinero.forEach(input => {
-            // (Mejora) Si el campo ya tiene un valor al cargar la página, lo formateamos
-            if (input.value) {
-                let valorPuroInicial = input.value.replace(/\D/g, "");
-                if (valorPuroInicial) {
-                    input.value = new Intl.NumberFormat('es-CO').format(valorPuroInicial);
-                }
+        // Función maestra para formatear (Agrega el $ y los puntos)
+        function aplicarFormatoVisual(valorCrudo) {
+            // Extraemos solo los números, ignorando letras, signos o puntos viejos
+            let valorPuro = valorCrudo.replace(/\D/g, "");
+            if (valorPuro) {
+                // Retornamos el valor con el signo $ y formato colombiano
+                return "$ " + new Intl.NumberFormat('es-CO').format(valorPuro);
             }
-
-            // 2. Cada vez que el usuario teclea algo...
-            input.addEventListener('input', function(e) {
-                // Borramos todo lo que no sea un número (letras, puntos viejos, etc.)
-                let valorPuro = this.value.replace(/\D/g, "");
-
-                if (valorPuro) {
-                    // Formateamos con puntos de miles (estilo Colombia)
-                    this.value = new Intl.NumberFormat('es-CO').format(valorPuro);
-                } else {
-                    this.value = "";
-                }
-            });
-        });
-
-        // 3. El truco final: Antes de enviar el formulario, limpiamos los puntos
-        const form = document.querySelector('form');
-        if(form) {
-            form.addEventListener('submit', function() {
-                inputsDinero.forEach(input => {
-                    // Quitamos todos los puntos para que Django guarde el número puro sin errores
-                    input.value = input.value.replace(/\./g, '').replace(/,/g, '');
-                });
-            });
+            return "";
         }
-    });
-<script>
-    document.addEventListener("DOMContentLoaded", function() {
-        const inputsDinero = document.querySelectorAll('.formato-dinero');
 
         inputsDinero.forEach(input => {
-            // 1. CARGA INICIAL: Cortar los decimales si vienen de la base de datos
+            // 1. CARGA INICIAL (Modo Edición): Arreglar el 3600.00 que trae Django
             if (input.value) {
-                // Partimos el texto en el punto (o coma) y nos quedamos solo con la parte entera
+                // Partimos el número en el punto decimal y nos quedamos solo con la parte entera (el 3600)
                 let parteEntera = input.value.split('.')[0].split(',')[0];
-                let valorPuroInicial = parteEntera.replace(/\D/g, "");
-
-                if (valorPuroInicial) {
-                    input.value = new Intl.NumberFormat('es-CO').format(valorPuroInicial);
-                }
+                input.value = aplicarFormatoVisual(parteEntera);
             }
 
-            // 2. MIENTRAS EL USUARIO ESCRIBE
+            // 2. MIENTRAS EL USUARIO ESCRIBE: Formato en tiempo real
             input.addEventListener('input', function(e) {
-                let valorPuro = this.value.replace(/\D/g, "");
-
-                if (valorPuro) {
-                    this.value = new Intl.NumberFormat('es-CO').format(valorPuro);
-                } else {
-                    this.value = "";
-                }
+                this.value = aplicarFormatoVisual(this.value);
             });
         });
 
-        // 3. ANTES DE GUARDAR: Limpiar para Django
+        // 3. ANTES DE GUARDAR: Deshacer el truco visual para la base de datos
         const form = document.querySelector('form');
         if(form) {
             form.addEventListener('submit', function() {
                 inputsDinero.forEach(input => {
-                    input.value = input.value.replace(/\./g, '').replace(/,/g, '');
+                    // Borramos el $, los puntos y los espacios. Dejamos solo los números puros.
+                    input.value = input.value.replace(/\D/g, '');
                 });
             });
         }
